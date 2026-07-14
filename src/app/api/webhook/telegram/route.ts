@@ -413,6 +413,105 @@ export async function POST(req: Request) {
           "text/plain",
           `📄 <b>${title} (TXT Readable Format)</b>\nFormatted cleanly just like Telegram alerts so you can easily read & review all ${consolidatedRows.length} leads without Excel!`
         );
+      } else if (callbackData.startsWith("admin_btn_")) {
+        if (!isAdmin) {
+          if (BOT_TOKEN && callbackQueryId) {
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ callback_query_id: callbackQueryId, text: "❌ Admin Access Only", show_alert: true })
+            }).catch(console.error);
+          }
+          return NextResponse.json({ ok: true });
+        }
+
+        if (callbackData === "admin_btn_pending") {
+          const { data, error } = await supabaseAdmin
+            .from('affiliate_links')
+            .select('chat_id, telegram_username, created_at')
+            .eq('is_active', false)
+            .eq('is_banned', false)
+            .order('created_at', { ascending: false });
+
+          if (error || !data || data.length === 0) {
+            await sendTelegramReply(callerChatId, "✅ No pending approval requests right now.");
+          } else {
+            await sendTelegramReply(callerChatId, `📋 <b>Pending Approvals Found: ${data.length}</b>\nClick buttons to approve or reject:`);
+            for (const req of data) {
+              const cardText = `⏳ <b>Pending Affiliate Request</b>\n\n👤 Username: @${req.telegram_username || 'unknown'}\n💬 Chat ID: <code>${req.chat_id}</code>\n🕐 Registered: ${new Date(req.created_at || Date.now()).toLocaleString()}`;
+              await sendTelegramReply(callerChatId, cardText, {
+                inline_keyboard: [
+                  [
+                    { text: `✅ Accept (@${req.telegram_username || 'user'})`, callback_data: `appr_${req.chat_id}` },
+                    { text: `❌ Reject (@${req.telegram_username || 'user'})`, callback_data: `rejc_${req.chat_id}` }
+                  ]
+                ]
+              });
+            }
+          }
+        } else if (callbackData === "admin_btn_affiliates") {
+          const { data, error } = await supabaseAdmin
+            .from('affiliate_links')
+            .select('chat_id, affiliate_id, telegram_username, is_active, is_banned, created_at')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+          if (error || !data || data.length === 0) {
+            await sendTelegramReply(callerChatId, "ℹ️ No affiliates found in the database.");
+          } else {
+            await sendTelegramReply(callerChatId, `👥 <b>Top Affiliates List</b>\nUse inline buttons to manage:`);
+            for (const aff of data) {
+              const statusStr = aff.is_banned ? "🚫 BANNED" : aff.is_active ? "✅ ACTIVE" : "⏳ PENDING";
+              const cardText = `👥 <b>Affiliate Profile</b>\n\n👤 Username: @${aff.telegram_username || 'N/A'}\n💬 Chat ID: <code>${aff.chat_id}</code>\n🔗 Ref ID: <code>${aff.affiliate_id}</code>\n📊 Status: <b>${statusStr}</b>\n🕐 Registered: ${new Date(aff.created_at || Date.now()).toLocaleDateString()}`;
+              const buttons = [];
+              if (aff.is_banned) {
+                buttons.push([{ text: `♻️ Unban / Restore`, callback_data: `unban_${aff.chat_id}` }]);
+              } else if (aff.is_active) {
+                buttons.push([
+                  { text: `⏸️ Suspend`, callback_data: `rejc_${aff.chat_id}` },
+                  { text: `🚫 Ban`, callback_data: `ban_${aff.chat_id}` }
+                ]);
+              } else {
+                buttons.push([
+                  { text: `✅ Approve`, callback_data: `appr_${aff.chat_id}` },
+                  { text: `❌ Reject`, callback_data: `rejc_${aff.chat_id}` }
+                ]);
+                buttons.push([{ text: `🚫 Ban Permanently`, callback_data: `ban_${aff.chat_id}` }]);
+              }
+              await sendTelegramReply(callerChatId, cardText, { inline_keyboard: buttons });
+            }
+          }
+        } else if (callbackData === "admin_btn_export_txt") {
+          const { consolidateTrackingRows, generateLeadsSummaryTxt, sendTelegramDocument } = await import("@/lib/telegram");
+          const { data: rows } = await supabaseAdmin.from('tracking_requests').select('*').order('created_at', { ascending: false });
+          const consolidated = consolidateTrackingRows(rows || []);
+          const txtContent = generateLeadsSummaryTxt(consolidated, true);
+          await sendTelegramDocument(callerChatId, `trackflow_all_leads_${new Date().toISOString().slice(0, 10)}.txt`, txtContent, "text/plain", "📄 <b>All Leads TXT Report</b>");
+        } else if (callbackData === "admin_btn_audit_duplicates") {
+          const { data: allRows } = await supabaseAdmin.from('affiliate_links').select('id, chat_id, affiliate_id, created_at').order('created_at', { ascending: false });
+          if (!allRows) {
+            await sendTelegramReply(callerChatId, "✅ No duplicate entries found.");
+          } else {
+            const seenChats = new Set<string>();
+            const seenLinks = new Set<string>();
+            const idsToDelete: string[] = [];
+            for (const row of allRows) {
+              if (seenChats.has(row.chat_id) || seenLinks.has(row.affiliate_id)) {
+                idsToDelete.push(row.id);
+              } else {
+                seenChats.add(row.chat_id);
+                seenLinks.add(row.affiliate_id);
+              }
+            }
+            if (idsToDelete.length > 0) {
+              await supabaseAdmin.from('affiliate_links').delete().in('id', idsToDelete);
+              await sendTelegramReply(callerChatId, `🛡️ <b>Duplicate Audit Completed!</b>\nCleaned up ${idsToDelete.length} duplicate link entries.`);
+            } else {
+              await sendTelegramReply(callerChatId, `🛡️ <b>Duplicate Audit Completed!</b>\nDatabase is 100% clean. Zero duplicates found.`);
+            }
+          }
+        } else if (callbackData === "admin_btn_web_panel") {
+          await sendTelegramReply(callerChatId, `🌐 <b>TrackFlow Pro Admin Dashboard</b>\n\nLogin URL: <code>${DOMAIN}/admin</code>\nPassphrase: <code>${callerChatId}</code> or <code>cozy_look</code>`);
+        }
       }
       return NextResponse.json({ ok: true });
     }
@@ -426,8 +525,51 @@ export async function POST(req: Request) {
     const text = body.message.text.trim();
     const senderUsername = body.message.from?.username || "unknown";
 
-    // 3. Handle commands
-    if (text.startsWith('/start') || text.startsWith('/link')) {
+    // Import keyboard helpers
+    const { getAdminReplyKeyboard, getAffiliateReplyKeyboard, getAdminMainInlineMenu } = await import("@/lib/telegram");
+    const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID && senderUsername.toLowerCase() === 'cozy_look';
+    const replyKeyboard = isAdmin ? getAdminReplyKeyboard() : getAffiliateReplyKeyboard();
+
+    // 3. Handle commands & button clicks
+    if (text === '🌐 Web Admin Panel' || text === '/admin' || text === '/menu') {
+      if (!isAdmin) {
+        await sendTelegramReply(chatId, "❌ Admin Access Only.", replyKeyboard);
+        return NextResponse.json({ ok: true });
+      }
+      const menuText = `🚀 <b>TrackFlow Admin Command Center</b>\n\nChoose an action below using the interactive buttons (` +
+        `<i>or use your bottom reply keyboard anytime</i>):`;
+      await sendTelegramReply(chatId, menuText, getAdminMainInlineMenu());
+      await sendTelegramReply(chatId, "⌨️ Bottom keyboard active:", replyKeyboard);
+      return NextResponse.json({ ok: true });
+    } else if (text === '🔄 Audit Duplicates') {
+      if (!isAdmin) {
+        await sendTelegramReply(chatId, "❌ Admin Access Only.", replyKeyboard);
+        return NextResponse.json({ ok: true });
+      }
+      const { data: allRows } = await supabaseAdmin.from('affiliate_links').select('id, chat_id, affiliate_id, created_at').order('created_at', { ascending: false });
+      if (!allRows) {
+        await sendTelegramReply(chatId, "✅ No duplicate entries found.", replyKeyboard);
+      } else {
+        const seenChats = new Set<string>();
+        const seenLinks = new Set<string>();
+        const idsToDelete: string[] = [];
+        for (const row of allRows) {
+          if (seenChats.has(row.chat_id) || seenLinks.has(row.affiliate_id)) {
+            idsToDelete.push(row.id);
+          } else {
+            seenChats.add(row.chat_id);
+            seenLinks.add(row.affiliate_id);
+          }
+        }
+        if (idsToDelete.length > 0) {
+          await supabaseAdmin.from('affiliate_links').delete().in('id', idsToDelete);
+          await sendTelegramReply(chatId, `🛡️ <b>Duplicate Audit Completed!</b>\nCleaned up ${idsToDelete.length} duplicate link entries.`, replyKeyboard);
+        } else {
+          await sendTelegramReply(chatId, `🛡️ <b>Duplicate Audit Completed!</b>\nDatabase is 100% clean. Zero duplicates found.`, replyKeyboard);
+        }
+      }
+      return NextResponse.json({ ok: true });
+    } else if (text.startsWith('/start') || text.startsWith('/link') || text === '🔗 My Link & Status') {
       // Check if user already has an affiliate link
       const { data: existing } = await supabaseAdmin
         .from('affiliate_links')
@@ -438,7 +580,8 @@ export async function POST(req: Request) {
       if (existing && existing.is_banned) {
         await sendTelegramReply(
           chatId,
-          `🚫 <b>Access Banned</b>\n\nYou have been banned from generating promotional links or participating in the affiliate program.\n${existing.ban_reason ? `Reason: <i>${existing.ban_reason}</i>\n\n` : ''}If you believe this is a mistake, please contact @cozy_look.`
+          `🚫 <b>Access Banned</b>\n\nYou have been banned from generating promotional links or participating in the affiliate program.\n${existing.ban_reason ? `Reason: <i>${existing.ban_reason}</i>\n\n` : ''}If you believe this is a mistake, please contact @cozy_look.`,
+          replyKeyboard
         );
         return NextResponse.json({ ok: true });
       }
@@ -449,30 +592,24 @@ export async function POST(req: Request) {
       if (existing) {
         affiliateId = existing.affiliate_id;
         isActive = existing.is_active;
-        // Optionally update their username if it changed
         await supabaseAdmin.from('affiliate_links').update({ telegram_username: senderUsername }).eq('chat_id', chatId);
       } else {
-        // Advanced Security: Prevent ANY chance of duplicate affiliate_id collision
         let isUnique = false;
         let attempts = 0;
-        
         while (!isUnique && attempts < 5) {
           affiliateId = nanoid(8);
           const { data: duplicateCheck } = await supabaseAdmin.from('affiliate_links').select('id').eq('affiliate_id', affiliateId).single();
-          if (!duplicateCheck) {
-            isUnique = true;
-          }
+          if (!duplicateCheck) isUnique = true;
           attempts++;
         }
         
-        // Save to Supabase (is_active will default to false via DB schema)
         const { error } = await supabaseAdmin
           .from('affiliate_links')
           .insert([{ chat_id: chatId, affiliate_id: affiliateId, telegram_username: senderUsername }]);
 
         if (error) {
           console.error("Failed to insert affiliate link:", error);
-          await sendTelegramReply(chatId, "❌ Sorry, there was an error generating your link. Please try again later.");
+          await sendTelegramReply(chatId, "❌ Sorry, there was an error generating your link. Please try again later.", replyKeyboard);
           return NextResponse.json({ ok: true });
         }
       }
@@ -480,12 +617,14 @@ export async function POST(req: Request) {
       if (isActive) {
         await sendTelegramReply(
           chatId,
-          `👋 Welcome back! Your promotion link is active.\n\n🔗 <b>Your Link:</b>\n<code>${DOMAIN}/?ref=${affiliateId}</code>\n\nShare this link to start receiving tracking data directly here!`
+          `👋 Welcome back! Your promotion link is active.\n\n🔗 <b>Your Link:</b>\n<code>${DOMAIN}/?ref=${affiliateId}</code>\n\nShare this link to start receiving tracking data directly here!`,
+          replyKeyboard
         );
       } else {
         await sendTelegramReply(
           chatId,
-          `⚠️ <b>Your Link is INACTIVE</b>\n\nWe've generated a unique tracking link for you, but you need a subscription to activate it.\n\n🔗 <b>Your Link:</b>\n<code>${DOMAIN}/?ref=${affiliateId}</code>\n\n<b>How to activate:</b>\nMessage <b>@cozy_look</b> to purchase a subscription.\nSend them your Chat ID: <code>${chatId}</code>\nYour Username: <code>@${senderUsername}</code>`
+          `⚠️ <b>Your Link is INACTIVE</b>\n\nWe've generated a unique tracking link for you, but you need a subscription to activate it.\n\n🔗 <b>Your Link:</b>\n<code>${DOMAIN}/?ref=${affiliateId}</code>\n\n<b>How to activate:</b>\nMessage <b>@cozy_look</b> to purchase a subscription.\nSend them your Chat ID: <code>${chatId}</code>\nYour Username: <code>@${senderUsername}</code>`,
+          replyKeyboard
         );
 
         const adminChatId = process.env.TELEGRAM_CHAT_ID;
@@ -503,10 +642,7 @@ export async function POST(req: Request) {
         }
       }
     } else if (text.startsWith('/approve')) {
-      // Admin only command
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
-      
-      // Strict verification: Must match BOTH the environment chat ID AND the cozy_look username
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
         return NextResponse.json({ ok: true });
@@ -519,7 +655,6 @@ export async function POST(req: Request) {
       }
 
       const targetChatId = parts[1].trim();
-
       const { data, error } = await supabaseAdmin
         .from('affiliate_links')
         .update({ is_active: true })
@@ -531,14 +666,10 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, `❌ Failed to approve. Chat ID ${targetChatId} not found.`);
       } else {
         await sendTelegramReply(chatId, `✅ Successfully approved Chat ID ${targetChatId}!`);
-        // Notify the user
         await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
       }
-
     } else if (text.startsWith('/reject')) {
-      // Admin only command
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
-      
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
         return NextResponse.json({ ok: true });
@@ -551,7 +682,6 @@ export async function POST(req: Request) {
       }
 
       const targetChatId = parts[1].trim();
-
       const { data, error } = await supabaseAdmin
         .from('affiliate_links')
         .delete()
@@ -563,14 +693,10 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, `❌ Failed to reject. Chat ID ${targetChatId} not found or already deleted.`);
       } else {
         await sendTelegramReply(chatId, `🗑️ Successfully rejected and deleted Chat ID ${targetChatId}!`);
-        // Notify the user
         await sendTelegramReply(targetChatId, `❌ <b>Request Rejected</b>\n\nYour subscription request was rejected. If you think this is a mistake, please contact @cozy_look.`);
       }
-
-    } else if (text.startsWith('/pending')) {
-      // Admin only command
+    } else if (text.startsWith('/pending') || text === '📋 Pending Approvals') {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
-      
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
         return NextResponse.json({ ok: true });
@@ -582,15 +708,10 @@ export async function POST(req: Request) {
         .eq('is_active', false)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        await sendTelegramReply(chatId, "❌ Error fetching pending requests.");
-        return NextResponse.json({ ok: true });
-      }
-
-      if (!data || data.length === 0) {
-        await sendTelegramReply(chatId, "✅ No pending approval requests.");
+      if (error || !data || data.length === 0) {
+        await sendTelegramReply(chatId, "✅ No pending approval requests right now.", replyKeyboard);
       } else {
-        await sendTelegramReply(chatId, `📋 <b>Pending Approvals Found: ${data.length}</b>\nClick the inline buttons below each card to immediately accept or reject:`);
+        await sendTelegramReply(chatId, `📋 <b>Pending Approvals Found: ${data.length}</b>\nClick the inline buttons below each card to immediately accept or reject:`, replyKeyboard);
         for (const req of data) {
           const cardText = `⏳ <b>Pending Affiliate Request</b>\n\n👤 Username: @${req.telegram_username || 'unknown'}\n💬 Chat ID: <code>${req.chat_id}</code>\n🕐 Registered: ${new Date(req.created_at || Date.now()).toLocaleString()}`;
           const keyboard = {
@@ -604,7 +725,6 @@ export async function POST(req: Request) {
           await sendTelegramReply(chatId, cardText, keyboard);
         }
       }
-
     } else if (text.startsWith('/ban')) {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
@@ -635,7 +755,6 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, `🚫 Successfully **BANNED** affiliate <code>${data.chat_id}</code> (@${data.telegram_username || 'user'})!\nReason: ${reason}`);
         await sendTelegramReply(data.chat_id, `🚫 <b>Account Banned</b>\n\nYour promotional link has been suspended and banned due to: <i>${reason}</i>\nYou will no longer receive tracking leads or be able to generate links.`);
       }
-
     } else if (text.startsWith('/unban')) {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
@@ -664,8 +783,7 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, `♻️ Successfully **UNBANNED** and restored affiliate <code>${data.chat_id}</code> (@${data.telegram_username || 'user'})!`);
         await sendTelegramReply(data.chat_id, `♻️ <b>Account Restored</b>\n\nYour affiliate ban has been lifted by Admin. You can now generate links via /start or check tracking stats.`);
       }
-
-    } else if (text.startsWith('/affiliates')) {
+    } else if (text.startsWith('/affiliates') || text === '👥 All Affiliates') {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
@@ -679,9 +797,9 @@ export async function POST(req: Request) {
         .limit(15);
 
       if (error || !data || data.length === 0) {
-        await sendTelegramReply(chatId, "ℹ️ No affiliates found in the database.");
+        await sendTelegramReply(chatId, "ℹ️ No affiliates found in the database.", replyKeyboard);
       } else {
-        await sendTelegramReply(chatId, `👥 <b>Top 15 Affiliates Summary</b>\nUse inline buttons or /ban /approve commands to manage:`);
+        await sendTelegramReply(chatId, `👥 <b>Top 15 Affiliates Summary</b>\nUse inline buttons below each card to manage without typing commands:`, replyKeyboard);
         for (const aff of data) {
           const statusStr = aff.is_banned ? "🚫 BANNED" : aff.is_active ? "✅ ACTIVE" : "⏳ PENDING";
           const cardText = `👥 <b>Affiliate Profile</b>\n\n👤 Username: @${aff.telegram_username || 'N/A'}\n💬 Chat ID: <code>${aff.chat_id}</code>\n🔗 Ref ID: <code>${aff.affiliate_id}</code>\n📊 Status: <b>${statusStr}</b>\n🕐 Registered: ${new Date(aff.created_at || Date.now()).toLocaleDateString()}`;
@@ -708,13 +826,13 @@ export async function POST(req: Request) {
     } else if (text.startsWith('/refresh') || text.startsWith('/track')) {
       const parts = text.trim().split(/\s+/);
       if (parts.length < 2) {
-        await sendTelegramReply(chatId, "ℹ️ Please provide a tracking number.\nExample: <code>/refresh 62515161616</code>");
+        await sendTelegramReply(chatId, "ℹ️ Please provide a tracking number.\nExample: <code>/refresh 62515161616</code>", replyKeyboard);
         return NextResponse.json({ ok: true });
       }
       const trackingNumber = parts[1].trim();
       const courier = parts[2]?.trim() || "Auto";
 
-      await sendTelegramReply(chatId, `🔄 Fetching real-time status for <code>${trackingNumber}</code>...`);
+      await sendTelegramReply(chatId, `🔄 Fetching real-time status for <code>${trackingNumber}</code>...`, replyKeyboard);
 
       const { fetchLiveTrackingStatus } = await import("@/lib/tracking-service");
       const { getRefreshKeyboard } = await import("@/lib/telegram");
@@ -730,7 +848,6 @@ export async function POST(req: Request) {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID && senderUsername.toLowerCase() === 'cozy_look';
       let isOwner = isAdmin;
       if (!isAdmin) {
         const { data: aff } = await supabaseAdmin
@@ -769,9 +886,8 @@ export async function POST(req: Request) {
         const replyText = `❌ <b>Tracking Failed</b>\n\n👤 Customer: <b>${customerName}</b> (<code>${customerPhone}</code>)\n🔢 Tracking ID: <code>${trackingNumber}</code> (${courier})\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
         await sendTelegramReply(chatId, replyText, keyboard);
       }
-    } else if (text.startsWith('/export')) {
+    } else if (text.startsWith('/export') || text === '📥 Export CSV' || text === '📄 Export TXT (A-Z)' || text === '📥 My Leads CSV' || text === '📄 My Leads TXT (A-Z)') {
       const { sendTelegramDocument } = await import("@/lib/telegram");
-      const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID && senderUsername.toLowerCase() === 'cozy_look';
       let query = supabaseAdmin
         .from('tracking_requests')
         .select('tracking_number, courier_name, status, full_name, mobile_number, affiliate_id, created_at')
@@ -786,66 +902,73 @@ export async function POST(req: Request) {
         if (aff?.affiliate_id && aff.is_active) {
           query = query.eq('affiliate_id', aff.affiliate_id);
         } else {
-          await sendTelegramReply(chatId, "❌ Access Denied: Only ACTIVE (approved) affiliates and Admin are allowed to export leads.");
+          await sendTelegramReply(chatId, "❌ Access Denied: Only ACTIVE (approved) affiliates and Admin are allowed to export leads.", replyKeyboard);
           return NextResponse.json({ ok: true });
         }
       }
 
-      await sendTelegramReply(chatId, "⏳ Generating CSV export dataset directly from database...");
+      const isTxtRequest = text.includes('TXT') || text.includes('text');
+      await sendTelegramReply(chatId, `⏳ Generating ${isTxtRequest ? 'TXT (A-to-Z)' : 'CSV'} report from database...`, replyKeyboard);
 
       const { data: rows, error } = await query;
       if (error || !rows || rows.length === 0) {
-        await sendTelegramReply(chatId, "❌ No tracking records found to export.");
+        await sendTelegramReply(chatId, "❌ No tracking records found to export.", replyKeyboard);
         return NextResponse.json({ ok: true });
       }
 
       const { consolidateTrackingRows, generateLeadsSummaryTxt } = await import("@/lib/telegram");
       const consolidatedRows = consolidateTrackingRows(rows);
 
-      const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Total Search Attempts (Try Count)", "Affiliate ID", "Latest Searched At"];
-      const csvRows = consolidatedRows.map(row => [
-        `"${(row.tracking_number || '').replace(/"/g, '""')}"`,
-        `"${(row.courier_name || '').replace(/"/g, '""')}"`,
-        `"${(row.status || '').replace(/"/g, '""')}"`,
-        `"${(row.full_name || '').replace(/"/g, '""')}"`,
-        `"${(row.mobile_number || '').replace(/"/g, '""')}"`,
-        `"${row.try_count || 1}"`,
-        `"${(row.affiliate_id || 'Direct/System').replace(/"/g, '""')}"`,
-        `"${(row.created_at || '').replace(/"/g, '""')}"`,
-      ].join(","));
+      if (!isTxtRequest || text.includes('CSV')) {
+        const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Total Search Attempts (Try Count)", "Affiliate ID", "Latest Searched At"];
+        const csvRows = consolidatedRows.map(row => [
+          `"${(row.tracking_number || '').replace(/"/g, '""')}"`,
+          `"${(row.courier_name || '').replace(/"/g, '""')}"`,
+          `"${(row.status || '').replace(/"/g, '""')}"`,
+          `"${(row.full_name || '').replace(/"/g, '""')}"`,
+          `"${(row.mobile_number || '').replace(/"/g, '""')}"`,
+          `"${row.try_count || 1}"`,
+          `"${(row.affiliate_id || 'Direct/System').replace(/"/g, '""')}"`,
+          `"${(row.created_at || '').replace(/"/g, '""')}"`,
+        ].join(","));
 
-      const csvContent = [headers.join(","), ...csvRows].join("\n");
-      const csvFilename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
-      const title = isAdmin ? "📊 <b>All Platform Leads Data</b>" : "📊 <b>Your Affiliate Leads Data</b>";
+        const csvContent = [headers.join(","), ...csvRows].join("\n");
+        const csvFilename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
+        const title = isAdmin ? "📊 <b>All Platform Leads Data</b>" : "📊 <b>Your Affiliate Leads Data</b>";
 
-      await sendTelegramDocument(
-        chatId,
-        csvFilename,
-        csvContent,
-        "text/csv",
-        `${title} (CSV Format)\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)`
-      );
+        await sendTelegramDocument(
+          chatId,
+          csvFilename,
+          csvContent,
+          "text/csv",
+          `${title} (CSV Format)\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)`
+        );
+      }
 
-      const txtContent = generateLeadsSummaryTxt(consolidatedRows, isAdmin);
-      const txtFilename = isAdmin ? `trackflow_all_leads_summary_${new Date().toISOString().slice(0, 10)}.txt` : `trackflow_my_leads_summary_${new Date().toISOString().slice(0, 10)}.txt`;
+      if (isTxtRequest || text === '/export') {
+        const txtContent = generateLeadsSummaryTxt(consolidatedRows, isAdmin);
+        const txtFilename = isAdmin ? `trackflow_all_leads_summary_${new Date().toISOString().slice(0, 10)}.txt` : `trackflow_my_leads_summary_${new Date().toISOString().slice(0, 10)}.txt`;
+        const title = isAdmin ? "📊 <b>All Platform Leads Data</b>" : "📊 <b>Your Affiliate Leads Data</b>";
 
-      await sendTelegramDocument(
-        chatId,
-        txtFilename,
-        txtContent,
-        "text/plain",
-        `📄 <b>${title} (TXT Readable Format)</b>\nFormatted cleanly just like Telegram alerts so you can easily read & review all ${consolidatedRows.length} leads without Excel!`
-      );
+        await sendTelegramDocument(
+          chatId,
+          txtFilename,
+          txtContent,
+          "text/plain",
+          `📄 <b>${title} (TXT Readable Format)</b>\nFormatted cleanly just like Telegram alerts so you can easily read & review all ${consolidatedRows.length} leads without Excel!`
+        );
+      }
     } else if (text.startsWith('/help')) {
         await sendTelegramReply(
           chatId,
-          `ℹ️ <b>TrackFlow Bot Help</b>\n\nCommands you can use:\n/start - Register and get your promotion link\n/link - View your promotion link again\n/refresh &lt;tracking_no&gt; - Live refresh any tracking number\n/track &lt;tracking_no&gt; - Live track any package\n/export - Export all your tracking data to CSV right here\n/help - Show this message\n\n<i>You can also click the buttons on any tracking alert!</i>`
+          `ℹ️ <b>TrackFlow Bot Help</b>\n\nClick the buttons on your keyboard below to manage everything instantly without typing commands:\n• 📋 Pending Approvals\n• 👥 All Affiliates\n• 📥 Export CSV / 📄 Export TXT\n• 🔄 Audit Duplicates\n• 🌐 Web Admin Panel`,
+          replyKeyboard
         );
     } else {
-      // Unknown command
       await sendTelegramReply(
         chatId,
-        "Welcome to the TrackFlow bot. Send /start to generate your unique tracking link, or /refresh <tracking_number> to check live status."
+        "Welcome to the TrackFlow bot. Use your bottom reply keyboard or tap /admin to open the button menu!",
+        replyKeyboard
       );
     }
 

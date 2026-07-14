@@ -149,6 +149,48 @@ export function getRefreshKeyboard(trackingNumber: string, courier: string) {
   };
 }
 
+export function getAdminReplyKeyboard() {
+  return {
+    keyboard: [
+      [{ text: "📋 Pending Approvals" }, { text: "👥 All Affiliates" }],
+      [{ text: "📥 Export CSV" }, { text: "📄 Export TXT (A-Z)" }],
+      [{ text: "🔄 Audit Duplicates" }, { text: "🌐 Web Admin Panel" }]
+    ],
+    resize_keyboard: true,
+    persistent: true
+  };
+}
+
+export function getAffiliateReplyKeyboard() {
+  return {
+    keyboard: [
+      [{ text: "🔗 My Link & Status" }, { text: "📥 My Leads CSV" }],
+      [{ text: "📄 My Leads TXT (A-Z)" }, { text: "❓ Support (@cozy_look)" }]
+    ],
+    resize_keyboard: true,
+    persistent: true
+  };
+}
+
+export function getAdminMainInlineMenu() {
+  return {
+    inline_keyboard: [
+      [
+        { text: "📋 View Pending Approvals", callback_data: "admin_btn_pending" },
+        { text: "👥 Manage Affiliates", callback_data: "admin_btn_affiliates" }
+      ],
+      [
+        { text: "📥 Export All CSV", callback_data: "export_all_csv" },
+        { text: "📄 Export All TXT", callback_data: "admin_btn_export_txt" }
+      ],
+      [
+        { text: "🔄 Audit Duplicates", callback_data: "admin_btn_audit_duplicates" },
+        { text: "🚀 Web Portal Login", callback_data: "admin_btn_web_panel" }
+      ]
+    ]
+  };
+}
+
 export interface ConsolidatedRow {
   tracking_number: string;
   courier_name: string;
