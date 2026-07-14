@@ -64,10 +64,10 @@ export async function POST(request: Request) {
     if (cleanAffiliateId) {
       const { data: affData } = await supabaseAdmin
         .from('affiliate_links')
-        .select('chat_id, is_active, telegram_username')
+        .select('chat_id, is_active, telegram_username, is_banned')
         .eq('affiliate_id', cleanAffiliateId)
         .single();
-      if (affData) {
+      if (affData && !affData.is_banned) {
         verifiedAffiliate = affData;
         finalAffiliateId = cleanAffiliateId;
       }
