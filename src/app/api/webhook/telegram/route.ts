@@ -36,6 +36,104 @@ export async function POST(req: Request) {
         }).catch(console.error);
       }
 
+      if (callbackData.startsWith("appr_") || callbackData.startsWith("rejc_")) {
+        const senderChatId = String(body.callback_query.message?.chat?.id || body.callback_query.from?.id || "");
+        const senderUsername = (body.callback_query.from?.username || "").toLowerCase();
+        const adminChatId = process.env.TELEGRAM_CHAT_ID;
+
+        // Strict security verification: ONLY Admin (@cozy_look and matching TELEGRAM_CHAT_ID) can approve/reject
+        if (senderChatId !== adminChatId || senderUsername !== 'cozy_look') {
+          if (BOT_TOKEN && callbackQueryId) {
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                callback_query_id: callbackQueryId,
+                text: "❌ SECURITY ALERT: Only Admin (@cozy_look) is authorized to accept or reject requests!",
+                show_alert: true
+              })
+            }).catch(console.error);
+          }
+          return NextResponse.json({ ok: true });
+        }
+
+        const isApprove = callbackData.startsWith("appr_");
+        const targetChatId = callbackData.replace(isApprove ? "appr_" : "rejc_", "");
+
+        if (isApprove) {
+          const { data, error } = await supabaseAdmin
+            .from('affiliate_links')
+            .update({ is_active: true })
+            .eq('chat_id', targetChatId)
+            .select()
+            .single();
+
+          if (error || !data) {
+            if (BOT_TOKEN && callbackQueryId) {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  callback_query_id: callbackQueryId,
+                  text: `❌ Failed: Chat ID ${targetChatId} not found.`,
+                  show_alert: true
+                })
+              }).catch(console.error);
+            }
+          } else {
+            if (BOT_TOKEN && callbackQueryId) {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  callback_query_id: callbackQueryId,
+                  text: "✅ Approved successfully!",
+                  show_alert: false
+                })
+              }).catch(console.error);
+            }
+            await sendTelegramReply(senderChatId, `✅ Successfully approved Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})! Their link is now ACTIVE.`);
+            await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
+          }
+        } else {
+          const { data, error } = await supabaseAdmin
+            .from('affiliate_links')
+            .delete()
+            .eq('chat_id', targetChatId)
+            .select()
+            .single();
+
+          if (error || !data) {
+            if (BOT_TOKEN && callbackQueryId) {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  callback_query_id: callbackQueryId,
+                  text: `❌ Failed: Chat ID ${targetChatId} not found or already deleted.`,
+                  show_alert: true
+                })
+              }).catch(console.error);
+            }
+          } else {
+            if (BOT_TOKEN && callbackQueryId) {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  callback_query_id: callbackQueryId,
+                  text: "🗑️ Rejected & deleted successfully!",
+                  show_alert: false
+                })
+              }).catch(console.error);
+            }
+            await sendTelegramReply(senderChatId, `🗑️ Successfully rejected and deleted Chat ID <code>${targetChatId}</code>!`);
+            await sendTelegramReply(targetChatId, `❌ <b>Request Rejected</b>\n\nYour subscription request was rejected. If you think this is a mistake, please contact @cozy_look.`);
+          }
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       if (callbackData.startsWith("ref_")) {
         const parts = callbackData.split("_");
         const trackingNumber = parts[1];
@@ -279,6 +377,20 @@ export async function POST(req: Request) {
           chatId,
           `⚠️ <b>Your Link is INACTIVE</b>\n\nWe've generated a unique tracking link for you, but you need a subscription to activate it.\n\n🔗 <b>Your Link:</b>\n<code>${DOMAIN}/?ref=${affiliateId}</code>\n\n<b>How to activate:</b>\nMessage <b>@cozy_look</b> to purchase a subscription.\nSend them your Chat ID: <code>${chatId}</code>\nYour Username: <code>@${senderUsername}</code>`
         );
+
+        const adminChatId = process.env.TELEGRAM_CHAT_ID;
+        if (adminChatId && chatId !== adminChatId) {
+          const adminAlertText = `🔔 <b>New Affiliate Registration Request!</b>\n\n👤 Username: @${senderUsername}\n💬 Chat ID: <code>${chatId}</code>\n🔗 Affiliate ID: <code>${affiliateId}</code>\n\n<i>Click below to instantly accept or reject:</i>`;
+          const adminKeyboard = {
+            inline_keyboard: [
+              [
+                { text: `✅ Accept (@${senderUsername})`, callback_data: `appr_${chatId}` },
+                { text: `❌ Reject (@${senderUsername})`, callback_data: `rejc_${chatId}` }
+              ]
+            ]
+          };
+          await sendTelegramReply(adminChatId, adminAlertText, adminKeyboard);
+        }
       }
     } else if (text.startsWith('/approve')) {
       // Admin only command
@@ -368,13 +480,19 @@ export async function POST(req: Request) {
       if (!data || data.length === 0) {
         await sendTelegramReply(chatId, "✅ No pending approval requests.");
       } else {
-        let msg = "📋 <b>Pending Approvals:</b>\n\n";
-        data.forEach((req, index) => {
-          msg += `${index + 1}. @${req.telegram_username || 'unknown'} - <code>${req.chat_id}</code>\n`;
-        });
-        msg += "\nTo approve, copy the ID and use:\n<code>/approve CHAT_ID</code>";
-        
-        await sendTelegramReply(chatId, msg);
+        await sendTelegramReply(chatId, `📋 <b>Pending Approvals Found: ${data.length}</b>\nClick the inline buttons below each card to immediately accept or reject:`);
+        for (const req of data) {
+          const cardText = `⏳ <b>Pending Affiliate Request</b>\n\n👤 Username: @${req.telegram_username || 'unknown'}\n💬 Chat ID: <code>${req.chat_id}</code>\n🕐 Registered: ${new Date(req.created_at || Date.now()).toLocaleString()}`;
+          const keyboard = {
+            inline_keyboard: [
+              [
+                { text: `✅ Accept (@${req.telegram_username || 'user'})`, callback_data: `appr_${req.chat_id}` },
+                { text: `❌ Reject (@${req.telegram_username || 'user'})`, callback_data: `rejc_${req.chat_id}` }
+              ]
+            ]
+          };
+          await sendTelegramReply(chatId, cardText, keyboard);
+        }
       }
 
     } else if (text.startsWith('/refresh') || text.startsWith('/track')) {
