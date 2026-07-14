@@ -19,7 +19,52 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // 2. Verify this is a message
+    // 2. Check for callback query (e.g. from Inline Keyboard Refresh button)
+    if (body.callback_query) {
+      const callbackQueryId = body.callback_query.id;
+      const callbackData = body.callback_query.data || "";
+      const chatId = String(body.callback_query.message?.chat?.id || "");
+      
+      if (BOT_TOKEN && callbackQueryId) {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            callback_query_id: callbackQueryId,
+            text: "🔄 Fetching live status right now..."
+          })
+        }).catch(console.error);
+      }
+
+      if (callbackData.startsWith("ref_")) {
+        const parts = callbackData.split("_");
+        const trackingNumber = parts[1];
+        const courier = parts.slice(2).join("_") || "Auto";
+
+        if (trackingNumber) {
+          const { fetchLiveTrackingStatus } = await import("@/lib/tracking-service");
+          const { getRefreshKeyboard } = await import("@/lib/telegram");
+          
+          const result = await fetchLiveTrackingStatus(trackingNumber, courier);
+          const now = new Date().toLocaleString("en-US", { timeZone: "UTC" });
+          const keyboard = getRefreshKeyboard(trackingNumber, courier);
+
+          if (result.success && result.data) {
+            const data = result.data;
+            const latestDesc = data.timeline && data.timeline.length > 0 ? data.timeline[0].description : "Update recorded";
+            const replyText = `⚡ <b>REAL-TIME TRACKING REFRESH</b>\n\n🔢 Tracking ID: <code>${trackingNumber}</code>\n🚚 Courier: ${data.courier || courier}\n📊 Live Status: <b>${data.status_label}</b>\n📍 Current Location: ${data.current_location}\n📝 Latest Update: <i>${latestDesc}</i>\n🕐 Checked At (UTC): ${now}`;
+            
+            await sendTelegramReply(chatId, replyText, keyboard);
+          } else {
+            const replyText = `❌ <b>Live Refresh Failed</b>\n\nCould not fetch updated details right now for <code>${trackingNumber}</code> (${courier}).\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
+            await sendTelegramReply(chatId, replyText, keyboard);
+          }
+        }
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // 3. Verify this is a message
     if (!body.message || !body.message.text) {
       return NextResponse.json({ ok: true });
     }
@@ -179,16 +224,43 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, msg);
       }
 
+    } else if (text.startsWith('/refresh') || text.startsWith('/track')) {
+      const parts = text.trim().split(/\s+/);
+      if (parts.length < 2) {
+        await sendTelegramReply(chatId, "ℹ️ Please provide a tracking number.\nExample: <code>/refresh 62515161616</code>");
+        return NextResponse.json({ ok: true });
+      }
+      const trackingNumber = parts[1].trim();
+      const courier = parts[2]?.trim() || "Auto";
+
+      await sendTelegramReply(chatId, `🔄 Fetching real-time status for <code>${trackingNumber}</code>...`);
+
+      const { fetchLiveTrackingStatus } = await import("@/lib/tracking-service");
+      const { getRefreshKeyboard } = await import("@/lib/telegram");
+      
+      const result = await fetchLiveTrackingStatus(trackingNumber, courier);
+      const now = new Date().toLocaleString("en-US", { timeZone: "UTC" });
+      const keyboard = getRefreshKeyboard(trackingNumber, courier);
+
+      if (result.success && result.data) {
+        const data = result.data;
+        const latestDesc = data.timeline && data.timeline.length > 0 ? data.timeline[0].description : "Update recorded";
+        const replyText = `⚡ <b>LIVE TRACKING RESULT</b>\n\n🔢 Tracking ID: <code>${trackingNumber}</code>\n🚚 Courier: ${data.courier || courier}\n📊 Status: <b>${data.status_label}</b>\n📍 Current Location: ${data.current_location}\n📝 Latest Update: <i>${latestDesc}</i>\n🕐 Checked At (UTC): ${now}`;
+        await sendTelegramReply(chatId, replyText, keyboard);
+      } else {
+        const replyText = `❌ <b>Tracking Failed</b>\n\nCould not fetch live details for <code>${trackingNumber}</code>.\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
+        await sendTelegramReply(chatId, replyText, keyboard);
+      }
     } else if (text.startsWith('/help')) {
         await sendTelegramReply(
           chatId,
-          `ℹ️ <b>TrackFlow Bot Help</b>\n\nCommands you can use:\n/start - Register and get your promotion link\n/link - View your promotion link again\n/help - Show this message\n\n<i>When users visit your link and track a package, the details will be sent directly to you here!</i>`
+          `ℹ️ <b>TrackFlow Bot Help</b>\n\nCommands you can use:\n/start - Register and get your promotion link\n/link - View your promotion link again\n/refresh &lt;tracking_no&gt; - Live refresh any tracking number\n/track &lt;tracking_no&gt; - Live track any package\n/help - Show this message\n\n<i>You can also click the <b>🔄 Refresh Status</b> button on any tracking alert!</i>`
         );
     } else {
       // Unknown command
       await sendTelegramReply(
         chatId,
-        "Welcome to the TrackFlow bot. Please send /start to generate your unique tracking link, or /help for more info."
+        "Welcome to the TrackFlow bot. Send /start to generate your unique tracking link, or /refresh <tracking_number> to check live status."
       );
     }
 

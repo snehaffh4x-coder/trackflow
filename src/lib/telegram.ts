@@ -11,7 +11,7 @@ interface TelegramResponse {
   description?: string;
 }
 
-export async function sendTelegramMessage(text: string): Promise<boolean> {
+export async function sendTelegramMessage(text: string, replyMarkup?: unknown): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn("[Telegram] Bot token or chat ID not configured, skipping notification");
     return false;
@@ -27,6 +27,7 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
         text,
         parse_mode: "HTML",
         disable_web_page_preview: true,
+        reply_markup: replyMarkup,
       }),
     });
 
@@ -46,7 +47,8 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
 
 export async function sendTelegramReply(
   chatId: number | string,
-  text: string
+  text: string,
+  replyMarkup?: unknown
 ): Promise<boolean> {
   if (!TELEGRAM_BOT_TOKEN) {
     return false;
@@ -62,6 +64,7 @@ export async function sendTelegramReply(
         text,
         parse_mode: "HTML",
         disable_web_page_preview: true,
+        reply_markup: replyMarkup,
       }),
     });
 
@@ -81,5 +84,19 @@ export function formatTrackingNotification(
   mobileNumber: string
 ): string {
   const now = new Date().toLocaleString("en-US", { timeZone: "UTC" });
-  return `📦 <b>New Tracking Search</b>\n\n👤 Name: ${fullName}\n📱 Mobile: <code>${mobileNumber}</code>\n🔢 Tracking ID: <code>${trackingNumber}</code>\n🚚 Courier: ${courier || "Auto-detect"}\n📊 Status: ${status}\n🕐 Time (UTC): ${now}`;
+  return `📦 <b>New Tracking Search</b>\n\n👤 Name: ${fullName}\n📱 Mobile: <code>${mobileNumber}</code>\n🔢 Tracking ID: <code>${trackingNumber}</code>\n🚚 Courier: ${courier || "Auto-detect"}\n📊 Status: <b>${status}</b>\n🕐 Time (UTC): ${now}`;
+}
+
+export function getRefreshKeyboard(trackingNumber: string, courier: string) {
+  const safeCourier = (courier || "Auto").substring(0, 20);
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: "🔄 Refresh Status (Realtime)",
+          callback_data: `ref_${trackingNumber}_${safeCourier}`
+        }
+      ]
+    ]
+  };
 }
