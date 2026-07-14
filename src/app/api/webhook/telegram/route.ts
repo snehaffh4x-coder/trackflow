@@ -98,7 +98,7 @@ export async function POST(req: Request) {
           const targetChatId = callbackData.replace("rejc_", "");
           const { data, error } = await supabaseAdmin
             .from('affiliate_links')
-            .delete()
+            .update({ is_active: false })
             .eq('chat_id', targetChatId)
             .select()
             .single();
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   callback_query_id: callbackQueryId,
-                  text: `❌ Failed: Chat ID ${targetChatId} not found or already deleted.`,
+                  text: `❌ Failed: Chat ID ${targetChatId} not found.`,
                   show_alert: true
                 })
               }).catch(console.error);
@@ -122,13 +122,13 @@ export async function POST(req: Request) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   callback_query_id: callbackQueryId,
-                  text: "🗑️ Rejected & deleted successfully!",
+                  text: "⏸️ Rejected / Suspended!",
                   show_alert: false
                 })
               }).catch(console.error);
             }
-            await sendTelegramReply(callerChatId, `🗑️ Successfully rejected and deleted Chat ID <code>${targetChatId}</code>!`);
-            await sendTelegramReply(targetChatId, `❌ <b>Request Rejected</b>\n\nYour subscription request was rejected. If you think this is a mistake, please contact @cozy_look.`);
+            await sendTelegramReply(callerChatId, `⏸️ Successfully suspended Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})! Their link is now INACTIVE.`);
+            await sendTelegramReply(targetChatId, `⏸️ <b>Link Suspended</b>\n\nYour affiliate link has been deactivated by Admin. If you think this is a mistake, please contact @cozy_look.`);
           }
         } else if (callbackData.startsWith("ban_")) {
           const targetChatId = callbackData.replace("ban_", "");
@@ -706,6 +706,7 @@ export async function POST(req: Request) {
         .from('affiliate_links')
         .select('chat_id, telegram_username, created_at')
         .eq('is_active', false)
+        .eq('is_banned', false)
         .order('created_at', { ascending: false });
 
       if (error || !data || data.length === 0) {
@@ -964,6 +965,12 @@ export async function POST(req: Request) {
           `ℹ️ <b>TrackFlow Bot Help</b>\n\nClick the buttons on your keyboard below to manage everything instantly without typing commands:\n• 📋 Pending Approvals\n• 👥 All Affiliates\n• 📥 Export CSV / 📄 Export TXT\n• 🔄 Audit Duplicates\n• 🌐 Web Admin Panel`,
           replyKeyboard
         );
+    } else if (text === '❓ Support (@cozy_look)') {
+      await sendTelegramReply(
+        chatId,
+        `📩 <b>Need Help?</b>\n\nFor subscription activation, ban appeals, or any questions, message the admin directly:\n👤 <b>@cozy_look</b>\n\nInclude your Chat ID: <code>${chatId}</code> so we can help you faster!`,
+        replyKeyboard
+      );
     } else {
       await sendTelegramReply(
         chatId,
