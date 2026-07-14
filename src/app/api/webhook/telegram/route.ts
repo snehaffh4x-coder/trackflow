@@ -115,6 +115,38 @@ export async function POST(req: Request) {
         await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
       }
 
+    } else if (text.startsWith('/reject')) {
+      // Admin only command
+      const adminChatId = process.env.TELEGRAM_CHAT_ID;
+      
+      if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
+        await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
+        return NextResponse.json({ ok: true });
+      }
+
+      const parts = text.trim().split(/\s+/);
+      if (parts.length < 2) {
+        await sendTelegramReply(chatId, "❌ Please provide a chat ID. Example: /reject 123456789");
+        return NextResponse.json({ ok: true });
+      }
+
+      const targetChatId = parts[1].trim();
+
+      const { data, error } = await supabaseAdmin
+        .from('affiliate_links')
+        .delete()
+        .eq('chat_id', targetChatId)
+        .select()
+        .single();
+
+      if (error || !data) {
+        await sendTelegramReply(chatId, `❌ Failed to reject. Chat ID ${targetChatId} not found or already deleted.`);
+      } else {
+        await sendTelegramReply(chatId, `🗑️ Successfully rejected and deleted Chat ID ${targetChatId}!`);
+        // Notify the user
+        await sendTelegramReply(targetChatId, `❌ <b>Request Rejected</b>\n\nYour subscription request was rejected. If you think this is a mistake, please contact @cozy_look.`);
+      }
+
     } else if (text.startsWith('/pending')) {
       // Admin only command
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
