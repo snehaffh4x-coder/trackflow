@@ -1,20 +1,13 @@
 import { HeroSection } from "@/components/home/hero-section";
 import { CouriersSection } from "@/components/home/couriers-section";
-import { FeaturesSection } from "@/components/home/features-section";
-import { HowItWorksSection } from "@/components/home/how-it-works-section";
-import { StatsSection } from "@/components/home/stats-section";
-import { PageTransition } from "@/components/ui/page-transition";
+import { VisualSection } from "@/components/home/visual-section";
 
 export default function Home() {
   return (
-    <PageTransition>
-      <div className="flex flex-col min-h-screen">
-        <HeroSection />
-        <CouriersSection />
-        <FeaturesSection />
-        <HowItWorksSection />
-        <StatsSection />
-      </div>
-    </PageTransition>
+    <div className="flex flex-col min-h-screen">
+      <HeroSection />
+      <CouriersSection />
+      <VisualSection />
+    </div>
   );
 }

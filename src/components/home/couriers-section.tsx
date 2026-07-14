@@ -1,56 +1,45 @@
-"use client";
-
-import { motion } from "framer-motion";
+import Image from "next/image";
 import { COURIERS } from "@/lib/utils";
 
 export function CouriersSection() {
   return (
-    <section className="py-20 border-y border-white/5 bg-background/50 relative overflow-hidden">
-      <div className="container mx-auto px-4 mb-10 text-center">
-        <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
-          Trusted globally by 500+ carriers
+    <section className="py-16 border-t border-white/5">
+      <div className="container mx-auto px-4">
+        <p className="text-center text-xs font-medium text-neutral-500 uppercase tracking-[0.25em] mb-10">
+          Supported Couriers
         </p>
-      </div>
 
-      <div className="relative flex overflow-x-hidden group">
-        <div className="py-4 animate-shimmer whitespace-nowrap flex items-center gap-12 sm:gap-24 px-12 sm:px-24">
-          {[...COURIERS, ...COURIERS].map((courier, i) => (
-            <div 
-              key={`${courier.code}-${i}`}
-              className="flex items-center gap-3 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all duration-300 cursor-pointer"
-            >
+        {/* Courier grid with image */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
+          {/* Left: Courier logos as simple text list */}
+          <div className="flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-4">
+            {COURIERS.map((courier) => (
               <div 
-                className="w-4 h-4 rounded-full" 
-                style={{ backgroundColor: courier.color }}
-              />
-              <span className="font-heading font-semibold text-xl tracking-tight text-foreground">
-                {courier.name}
-              </span>
-            </div>
-          ))}
-        </div>
-        
-        <div className="absolute top-0 py-4 animate-shimmer whitespace-nowrap flex items-center gap-12 sm:gap-24 px-12 sm:px-24" style={{ transform: "translateX(100%)" }}>
-          {[...COURIERS, ...COURIERS].map((courier, i) => (
-            <div 
-              key={`${courier.code}-${i}-clone`}
-              className="flex items-center gap-3 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all duration-300 cursor-pointer"
-            >
-              <div 
-                className="w-4 h-4 rounded-full" 
-                style={{ backgroundColor: courier.color }}
-              />
-              <span className="font-heading font-semibold text-xl tracking-tight text-foreground">
-                {courier.name}
-              </span>
-            </div>
-          ))}
+                key={courier.code}
+                className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+              >
+                <div 
+                  className="w-2 h-2 rounded-full" 
+                  style={{ backgroundColor: courier.color }}
+                />
+                <span className="text-sm font-medium">{courier.name}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Right: Professional courier image */}
+          <div className="relative h-64 lg:h-80 rounded-xl overflow-hidden">
+            <Image
+              src="/courier-trust.png"
+              alt="Courier delivery"
+              fill
+              className="object-cover rounded-xl"
+              quality={85}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+          </div>
         </div>
       </div>
-      
-      {/* Gradient masks for seamless loop */}
-      <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-background to-transparent z-10" />
-      <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-background to-transparent z-10" />
     </section>
   );
 }
