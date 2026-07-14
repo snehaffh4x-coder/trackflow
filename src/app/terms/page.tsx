@@ -58,13 +58,36 @@ export default function TermsPage() {
             (iv) unauthorized access, use or alteration of your transmissions or content.
           </p>
 
-          <h2>7. Changes to Terms</h2>
+          <h2>7. Fraud & Scam Warning</h2>
+          <p>
+            Please be aware that courier companies such as India Post (Speed Post), Blue Dart, Delhivery, DTDC, Ekart, 
+            and other logistics providers will <strong>never</strong> contact you via phone calls, SMS, or messages asking for:
+          </p>
+          <ul>
+            <li>KYC (Know Your Customer) verification or Aadhaar/PAN details.</li>
+            <li>Payment for customs duty, delivery charges, or address correction fees.</li>
+            <li>OTP (One-Time Password) or bank account/UPI details.</li>
+            <li>Personal identification documents or login credentials.</li>
+            <li>Clicking on suspicious links to "reschedule delivery" or "confirm your address."</li>
+          </ul>
+          <p>
+            If you receive any such call, SMS, email, or WhatsApp message claiming to be from a courier service, 
+            <strong>do not respond, do not click any links, and do not share any personal or financial information.</strong> 
+            These are fraudulent attempts designed to steal your identity or money. Report such incidents to your local 
+            cyber crime helpline (India: 1930 or cybercrime.gov.in).
+          </p>
+          <p>
+            TrackFlow is a tracking aggregation platform only. We do not process payments, handle deliveries, 
+            or require any form of KYC from our users.
+          </p>
+
+          <h2>8. Changes to Terms</h2>
           <p>
             We reserve the right, at our sole discretion, to modify or replace these Terms at any time. What constitutes a 
             material change will be determined at our sole discretion.
           </p>
 
-          <h2>8. Contact Us</h2>
+          <h2>9. Contact Us</h2>
           <p>
             If you have any questions about these Terms, please contact us at:
             <br />
