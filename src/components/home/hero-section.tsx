@@ -34,7 +34,7 @@ export function HeroSection() {
           </h1>
 
           <p className="text-lg text-neutral-400 mb-10 max-w-xl mx-auto leading-relaxed">
-            Enter your tracking number below. We support 500+ couriers worldwide with instant status updates.
+            Enter your tracking number below for real-time delivery updates.
           </p>
         </div>
 

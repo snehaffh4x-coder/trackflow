@@ -9,14 +9,18 @@ export function cn(...inputs: ClassValue[]) {
 // --- Courier Detection ---
 
 export const COURIERS: Courier[] = [
+  { name: "India Post (Speed Post)", code: "speedpost", color: "#E31E24" },
   { name: "Blue Dart", code: "bluedart", color: "#003399" },
   { name: "Delhivery", code: "delhivery", color: "#E21836" },
   { name: "DTDC", code: "dtdc", color: "#D4003C" },
   { name: "Ecom Express", code: "ecomexpress", color: "#0056A8" },
-  { name: "Ekart", code: "ekart", color: "#F2BB13" },
-  { name: "India Post", code: "indiapost", color: "#E31E24" },
+  { name: "Ekart (Flipkart)", code: "ekart", color: "#F2BB13" },
   { name: "Shadowfax", code: "shadowfax", color: "#E02128" },
   { name: "XpressBees", code: "xpressbees", color: "#ED1C24" },
+  { name: "Amazon Shipping", code: "amazon", color: "#FF9900" },
+  { name: "Gati", code: "gati", color: "#005BAA" },
+  { name: "Professional Couriers", code: "professional", color: "#0066CC" },
+  { name: "Trackon", code: "trackon", color: "#1B75BB" },
 ];
 
 export function detectCourier(trackingNumber: string): string {
