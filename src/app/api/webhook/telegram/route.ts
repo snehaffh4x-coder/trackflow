@@ -49,6 +49,16 @@ export async function POST(req: Request) {
           const now = new Date().toLocaleString("en-US", { timeZone: "UTC" });
           const keyboard = getRefreshKeyboard(trackingNumber, courier);
 
+          const { data: dbRows } = await supabaseAdmin
+            .from('tracking_requests')
+            .select('full_name, mobile_number, affiliate_id')
+            .eq('tracking_number', trackingNumber)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          const customerName = dbRows?.[0]?.full_name || "N/A";
+          const customerPhone = dbRows?.[0]?.mobile_number || "N/A";
+
           if (result.success && result.data) {
             const data = result.data;
             let timelineText = "• No recent timeline entries right now.";
@@ -59,6 +69,8 @@ export async function POST(req: Request) {
                 .join("\n\n");
             }
             const replyText = `⚡ <b>LIVE REFRESHED TRACKING STATUS</b> ⚡\n\n` +
+              `👤 Customer Name: <b>${customerName}</b>\n` +
+              `📱 Mobile Number: <code>${customerPhone}</code>\n` +
               `🔢 Tracking ID: <code>${trackingNumber}</code>\n` +
               `🚚 Courier: <b>${data.courier || courier}</b>\n` +
               `📊 Status: <b>${data.status_label}</b> (${data.progress || 0}%)\n` +
@@ -68,7 +80,7 @@ export async function POST(req: Request) {
             
             await sendTelegramReply(chatId, replyText, keyboard);
           } else {
-            const replyText = `❌ <b>Live Refresh Failed</b>\n\nCould not fetch updated details right now for <code>${trackingNumber}</code> (${courier}).\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
+            const replyText = `❌ <b>Live Refresh Failed</b>\n\n👤 Customer: <b>${customerName}</b> (<code>${customerPhone}</code>)\n🔢 Tracking ID: <code>${trackingNumber}</code> (${courier})\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
             await sendTelegramReply(chatId, replyText, keyboard);
           }
         }
@@ -82,25 +94,44 @@ export async function POST(req: Request) {
           const { sendTelegramDocument } = await import("@/lib/telegram");
           const result = await fetchLiveTrackingStatus(trackingNumber, courier);
 
+          const { data: dbRows } = await supabaseAdmin
+            .from('tracking_requests')
+            .select('full_name, mobile_number, affiliate_id, created_at')
+            .eq('tracking_number', trackingNumber)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          const customerName = dbRows?.[0]?.full_name || "N/A (Direct query)";
+          const customerPhone = dbRows?.[0]?.mobile_number || "N/A";
+          const affiliateSource = dbRows?.[0]?.affiliate_id ? `Affiliate (${dbRows[0].affiliate_id})` : "Direct Website Search";
+          const firstSearchedAt = dbRows?.[0]?.created_at || new Date().toISOString();
+
           if (result.success && result.data) {
             const data = result.data;
-            let fileContent = `========================================\n`;
-            fileContent += `   TRACKFLOW — PACKAGE HISTORY REPORT   \n`;
-            fileContent += `========================================\n\n`;
+            let fileContent = `========================================================\n`;
+            fileContent += `          TRACKFLOW — A-TO-Z PACKAGE REPORT           \n`;
+            fileContent += `========================================================\n\n`;
+            fileContent += `[CUSTOMER DETAILS]\n`;
+            fileContent += `Customer Name   : ${customerName}\n`;
+            fileContent += `Mobile Number   : ${customerPhone}\n`;
+            fileContent += `Search Source   : ${affiliateSource}\n`;
+            fileContent += `First Tracked At: ${firstSearchedAt}\n\n`;
+            fileContent += `--------------------------------------------------------\n`;
+            fileContent += `[SHIPMENT STATUS]\n`;
             fileContent += `Tracking Number : ${trackingNumber}\n`;
             fileContent += `Courier         : ${data.courier || courier}\n`;
             fileContent += `Current Status  : ${data.status_label} (${data.progress}%)\n`;
             fileContent += `Current Location: ${data.current_location}\n`;
             fileContent += `Report Generated: ${new Date().toUTCString()}\n\n`;
-            fileContent += `----------------------------------------\n`;
-            fileContent += `          FULL TIMELINE HISTORY         \n`;
-            fileContent += `----------------------------------------\n\n`;
+            fileContent += `--------------------------------------------------------\n`;
+            fileContent += `[FULL TIMELINE HISTORY / A-TO-Z LOGS]\n`;
+            fileContent += `--------------------------------------------------------\n\n`;
 
             if (data.timeline && data.timeline.length > 0) {
               data.timeline.forEach((event, idx) => {
-                fileContent += `[${idx + 1}] Date/Time: ${event.date ? event.date.split('T')[0] : ''} ${event.time || ''}\n`;
-                fileContent += `    Location : ${event.location || 'Update'}\n`;
-                fileContent += `    Details  : ${event.description || 'No description'}\n\n`;
+                fileContent += `[Update #${idx + 1}] Date & Time: ${event.date ? event.date.split('T')[0] : ''} ${event.time || ''}\n`;
+                fileContent += `             Location   : ${event.location || 'Update'}\n`;
+                fileContent += `             Description: ${event.description || 'No details'}\n\n`;
               });
             } else {
               fileContent += `No detailed timeline events available from courier right now.\n`;
@@ -111,7 +142,7 @@ export async function POST(req: Request) {
               `package_history_${trackingNumber}.txt`,
               fileContent,
               "text/plain",
-              `📄 <b>Complete Package History Exported!</b>\nAll recent & historical updates for <code>${trackingNumber}</code> are in this document.`
+              `📄 <b>Complete A-to-Z Package Report!</b>\nAll customer info (Name/Mobile) & complete history for <code>${trackingNumber}</code> are in this document.`
             );
           } else {
             await sendTelegramReply(chatId, `❌ Could not export package history right now. Reason: ${result.error || "Courier API busy"}`);
@@ -349,6 +380,16 @@ export async function POST(req: Request) {
       const now = new Date().toLocaleString("en-US", { timeZone: "UTC" });
       const keyboard = getRefreshKeyboard(trackingNumber, courier);
 
+      const { data: dbRows } = await supabaseAdmin
+        .from('tracking_requests')
+        .select('full_name, mobile_number, affiliate_id')
+        .eq('tracking_number', trackingNumber)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const customerName = dbRows?.[0]?.full_name || "N/A";
+      const customerPhone = dbRows?.[0]?.mobile_number || "N/A";
+
       if (result.success && result.data) {
         const data = result.data;
         let timelineText = "• No recent timeline entries right now.";
@@ -359,6 +400,8 @@ export async function POST(req: Request) {
             .join("\n\n");
         }
         const replyText = `⚡ <b>LIVE REFRESHED TRACKING STATUS</b> ⚡\n\n` +
+          `👤 Customer Name: <b>${customerName}</b>\n` +
+          `📱 Mobile Number: <code>${customerPhone}</code>\n` +
           `🔢 Tracking ID: <code>${trackingNumber}</code>\n` +
           `🚚 Courier: <b>${data.courier || courier}</b>\n` +
           `📊 Status: <b>${data.status_label}</b> (${data.progress || 0}%)\n` +
@@ -367,7 +410,7 @@ export async function POST(req: Request) {
           `🕐 Refreshed At (UTC): ${now}`;
         await sendTelegramReply(chatId, replyText, keyboard);
       } else {
-        const replyText = `❌ <b>Tracking Failed</b>\n\nCould not fetch live details for <code>${trackingNumber}</code>.\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
+        const replyText = `❌ <b>Tracking Failed</b>\n\n👤 Customer: <b>${customerName}</b> (<code>${customerPhone}</code>)\n🔢 Tracking ID: <code>${trackingNumber}</code> (${courier})\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
         await sendTelegramReply(chatId, replyText, keyboard);
       }
     } else if (text.startsWith('/export')) {
