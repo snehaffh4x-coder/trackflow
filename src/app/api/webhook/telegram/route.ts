@@ -51,8 +51,20 @@ export async function POST(req: Request) {
 
           if (result.success && result.data) {
             const data = result.data;
-            const latestDesc = data.timeline && data.timeline.length > 0 ? data.timeline[0].description : "Update recorded";
-            const replyText = `⚡ <b>REAL-TIME TRACKING REFRESH</b>\n\n🔢 Tracking ID: <code>${trackingNumber}</code>\n🚚 Courier: ${data.courier || courier}\n📊 Live Status: <b>${data.status_label}</b>\n📍 Current Location: ${data.current_location}\n📝 Latest Update: <i>${latestDesc}</i>\n🕐 Checked At (UTC): ${now}`;
+            let timelineText = "• No recent timeline entries right now.";
+            if (data.timeline && data.timeline.length > 0) {
+              timelineText = data.timeline
+                .slice(0, 5)
+                .map(e => `🔹 <b>${e.date ? e.date.split('T')[0] : ''} ${e.time || ''}</b>\n   └ ${e.description || 'Status update'}`)
+                .join("\n\n");
+            }
+            const replyText = `⚡ <b>LIVE REFRESHED TRACKING STATUS</b> ⚡\n\n` +
+              `🔢 Tracking ID: <code>${trackingNumber}</code>\n` +
+              `🚚 Courier: <b>${data.courier || courier}</b>\n` +
+              `📊 Status: <b>${data.status_label}</b> (${data.progress || 0}%)\n` +
+              `📍 Current Location: ${data.current_location || 'Transit'}\n\n` +
+              `⏳ <b>Latest Recent Updates (Top 5):</b>\n${timelineText}\n\n` +
+              `🕐 Refreshed At (UTC): ${now}`;
             
             await sendTelegramReply(chatId, replyText, keyboard);
           } else {
@@ -60,6 +72,101 @@ export async function POST(req: Request) {
             await sendTelegramReply(chatId, replyText, keyboard);
           }
         }
+      } else if (callbackData.startsWith("pkgexp_")) {
+        const parts = callbackData.split("_");
+        const trackingNumber = parts[1];
+        const courier = parts.slice(2).join("_") || "Auto";
+
+        if (trackingNumber) {
+          const { fetchLiveTrackingStatus } = await import("@/lib/tracking-service");
+          const { sendTelegramDocument } = await import("@/lib/telegram");
+          const result = await fetchLiveTrackingStatus(trackingNumber, courier);
+
+          if (result.success && result.data) {
+            const data = result.data;
+            let fileContent = `========================================\n`;
+            fileContent += `   TRACKFLOW — PACKAGE HISTORY REPORT   \n`;
+            fileContent += `========================================\n\n`;
+            fileContent += `Tracking Number : ${trackingNumber}\n`;
+            fileContent += `Courier         : ${data.courier || courier}\n`;
+            fileContent += `Current Status  : ${data.status_label} (${data.progress}%)\n`;
+            fileContent += `Current Location: ${data.current_location}\n`;
+            fileContent += `Report Generated: ${new Date().toUTCString()}\n\n`;
+            fileContent += `----------------------------------------\n`;
+            fileContent += `          FULL TIMELINE HISTORY         \n`;
+            fileContent += `----------------------------------------\n\n`;
+
+            if (data.timeline && data.timeline.length > 0) {
+              data.timeline.forEach((event, idx) => {
+                fileContent += `[${idx + 1}] Date/Time: ${event.date ? event.date.split('T')[0] : ''} ${event.time || ''}\n`;
+                fileContent += `    Location : ${event.location || 'Update'}\n`;
+                fileContent += `    Details  : ${event.description || 'No description'}\n\n`;
+              });
+            } else {
+              fileContent += `No detailed timeline events available from courier right now.\n`;
+            }
+
+            await sendTelegramDocument(
+              chatId,
+              `package_history_${trackingNumber}.txt`,
+              fileContent,
+              "text/plain",
+              `📄 <b>Complete Package History Exported!</b>\nAll recent & historical updates for <code>${trackingNumber}</code> are in this document.`
+            );
+          } else {
+            await sendTelegramReply(chatId, `❌ Could not export package history right now. Reason: ${result.error || "Courier API busy"}`);
+          }
+        }
+      } else if (callbackData === "export_all_csv") {
+        const { sendTelegramDocument } = await import("@/lib/telegram");
+        const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID;
+        let query = supabaseAdmin
+          .from('tracking_requests')
+          .select('tracking_number, courier_name, status, full_name, mobile_number, affiliate_id, created_at')
+          .order('created_at', { ascending: false });
+
+        if (!isAdmin) {
+          const { data: aff } = await supabaseAdmin
+            .from('affiliate_links')
+            .select('affiliate_id')
+            .eq('chat_id', chatId)
+            .single();
+          if (aff?.affiliate_id) {
+            query = query.eq('affiliate_id', aff.affiliate_id);
+          } else {
+            await sendTelegramReply(chatId, "❌ Export is only permitted for registered affiliates and Admin.");
+            return NextResponse.json({ ok: true });
+          }
+        }
+
+        const { data: rows, error } = await query;
+        if (error || !rows || rows.length === 0) {
+          await sendTelegramReply(chatId, "❌ No tracking records found to export.");
+          return NextResponse.json({ ok: true });
+        }
+
+        const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Affiliate ID", "Created At"];
+        const csvRows = rows.map(row => [
+          `"${(row.tracking_number || '').replace(/"/g, '""')}"`,
+          `"${(row.courier_name || '').replace(/"/g, '""')}"`,
+          `"${(row.status || '').replace(/"/g, '""')}"`,
+          `"${(row.full_name || '').replace(/"/g, '""')}"`,
+          `"${(row.mobile_number || '').replace(/"/g, '""')}"`,
+          `"${(row.affiliate_id || 'Direct/System').replace(/"/g, '""')}"`,
+          `"${(row.created_at || '').replace(/"/g, '""')}"`,
+        ].join(","));
+
+        const csvContent = [headers.join(","), ...csvRows].join("\n");
+        const filename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
+        const title = isAdmin ? "📊 <b>All Platform Tracking Data (CSV Export)</b>" : "📊 <b>Your Affiliate Leads Data (CSV Export)</b>";
+
+        await sendTelegramDocument(
+          chatId,
+          filename,
+          csvContent,
+          "text/csv",
+          `${title}\nTotal Records: <b>${rows.length}</b>\nHere is your complete tracking dataset exported directly from the database right now!`
+        );
       }
       return NextResponse.json({ ok: true });
     }
@@ -244,17 +351,81 @@ export async function POST(req: Request) {
 
       if (result.success && result.data) {
         const data = result.data;
-        const latestDesc = data.timeline && data.timeline.length > 0 ? data.timeline[0].description : "Update recorded";
-        const replyText = `⚡ <b>LIVE TRACKING RESULT</b>\n\n🔢 Tracking ID: <code>${trackingNumber}</code>\n🚚 Courier: ${data.courier || courier}\n📊 Status: <b>${data.status_label}</b>\n📍 Current Location: ${data.current_location}\n📝 Latest Update: <i>${latestDesc}</i>\n🕐 Checked At (UTC): ${now}`;
+        let timelineText = "• No recent timeline entries right now.";
+        if (data.timeline && data.timeline.length > 0) {
+          timelineText = data.timeline
+            .slice(0, 5)
+            .map(e => `🔹 <b>${e.date ? e.date.split('T')[0] : ''} ${e.time || ''}</b>\n   └ ${e.description || 'Status update'}`)
+            .join("\n\n");
+        }
+        const replyText = `⚡ <b>LIVE REFRESHED TRACKING STATUS</b> ⚡\n\n` +
+          `🔢 Tracking ID: <code>${trackingNumber}</code>\n` +
+          `🚚 Courier: <b>${data.courier || courier}</b>\n` +
+          `📊 Status: <b>${data.status_label}</b> (${data.progress || 0}%)\n` +
+          `📍 Current Location: ${data.current_location || 'Transit'}\n\n` +
+          `⏳ <b>Latest Recent Updates (Top 5):</b>\n${timelineText}\n\n` +
+          `🕐 Refreshed At (UTC): ${now}`;
         await sendTelegramReply(chatId, replyText, keyboard);
       } else {
         const replyText = `❌ <b>Tracking Failed</b>\n\nCould not fetch live details for <code>${trackingNumber}</code>.\nReason: ${result.error || "Courier server busy or tracking not found"}\n🕐 Checked At (UTC): ${now}`;
         await sendTelegramReply(chatId, replyText, keyboard);
       }
+    } else if (text.startsWith('/export')) {
+      const { sendTelegramDocument } = await import("@/lib/telegram");
+      const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID;
+      let query = supabaseAdmin
+        .from('tracking_requests')
+        .select('tracking_number, courier_name, status, full_name, mobile_number, affiliate_id, created_at')
+        .order('created_at', { ascending: false });
+
+      if (!isAdmin) {
+        const { data: aff } = await supabaseAdmin
+          .from('affiliate_links')
+          .select('affiliate_id')
+          .eq('chat_id', chatId)
+          .single();
+        if (aff?.affiliate_id) {
+          query = query.eq('affiliate_id', aff.affiliate_id);
+        } else {
+          await sendTelegramReply(chatId, "❌ /export command is only available for registered affiliates and Admin.");
+          return NextResponse.json({ ok: true });
+        }
+      }
+
+      await sendTelegramReply(chatId, "⏳ Generating CSV export dataset directly from database...");
+
+      const { data: rows, error } = await query;
+      if (error || !rows || rows.length === 0) {
+        await sendTelegramReply(chatId, "❌ No tracking records found to export.");
+        return NextResponse.json({ ok: true });
+      }
+
+      const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Affiliate ID", "Created At"];
+      const csvRows = rows.map(row => [
+        `"${(row.tracking_number || '').replace(/"/g, '""')}"`,
+        `"${(row.courier_name || '').replace(/"/g, '""')}"`,
+        `"${(row.status || '').replace(/"/g, '""')}"`,
+        `"${(row.full_name || '').replace(/"/g, '""')}"`,
+        `"${(row.mobile_number || '').replace(/"/g, '""')}"`,
+        `"${(row.affiliate_id || 'Direct/System').replace(/"/g, '""')}"`,
+        `"${(row.created_at || '').replace(/"/g, '""')}"`,
+      ].join(","));
+
+      const csvContent = [headers.join(","), ...csvRows].join("\n");
+      const filename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
+      const title = isAdmin ? "📊 <b>All Platform Tracking Data (CSV Export)</b>" : "📊 <b>Your Affiliate Leads Data (CSV Export)</b>";
+
+      await sendTelegramDocument(
+        chatId,
+        filename,
+        csvContent,
+        "text/csv",
+        `${title}\nTotal Records: <b>${rows.length}</b>\nHere is your complete dataset exported directly from the database right now!`
+      );
     } else if (text.startsWith('/help')) {
         await sendTelegramReply(
           chatId,
-          `ℹ️ <b>TrackFlow Bot Help</b>\n\nCommands you can use:\n/start - Register and get your promotion link\n/link - View your promotion link again\n/refresh &lt;tracking_no&gt; - Live refresh any tracking number\n/track &lt;tracking_no&gt; - Live track any package\n/help - Show this message\n\n<i>You can also click the <b>🔄 Refresh Status</b> button on any tracking alert!</i>`
+          `ℹ️ <b>TrackFlow Bot Help</b>\n\nCommands you can use:\n/start - Register and get your promotion link\n/link - View your promotion link again\n/refresh &lt;tracking_no&gt; - Live refresh any tracking number\n/track &lt;tracking_no&gt; - Live track any package\n/export - Export all your tracking data to CSV right here\n/help - Show this message\n\n<i>You can also click the buttons on any tracking alert!</i>`
         );
     } else {
       // Unknown command

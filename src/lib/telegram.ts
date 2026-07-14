@@ -76,6 +76,44 @@ export async function sendTelegramReply(
   }
 }
 
+export async function sendTelegramDocument(
+  chatId: number | string,
+  filename: string,
+  content: string,
+  contentType: string = "text/csv",
+  caption?: string
+): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) return false;
+
+  try {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`;
+    const formData = new FormData();
+    formData.append("chat_id", String(chatId));
+    if (caption) {
+      formData.append("caption", caption);
+      formData.append("parse_mode", "HTML");
+    }
+
+    const blob = new Blob([content], { type: contentType });
+    formData.append("document", blob, filename);
+
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data: TelegramResponse = await response.json();
+    if (!data.ok) {
+      console.error("[Telegram] Failed to send document:", data.description);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("[Telegram] Error sending document:", error);
+    return false;
+  }
+}
+
 export function formatTrackingNotification(
   trackingNumber: string,
   courier: string,
@@ -93,8 +131,18 @@ export function getRefreshKeyboard(trackingNumber: string, courier: string) {
     inline_keyboard: [
       [
         {
-          text: "🔄 Refresh Status (Realtime)",
+          text: "🔄 Live Refresh Status",
           callback_data: `ref_${trackingNumber}_${safeCourier}`
+        },
+        {
+          text: "📄 Export Package History",
+          callback_data: `pkgexp_${trackingNumber}_${safeCourier}`
+        }
+      ],
+      [
+        {
+          text: "📊 Export All Tracking Data (CSV)",
+          callback_data: "export_all_csv"
         }
       ]
     ]
