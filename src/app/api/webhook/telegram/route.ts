@@ -36,13 +36,14 @@ export async function POST(req: Request) {
         }).catch(console.error);
       }
 
-      if (callbackData.startsWith("appr_") || callbackData.startsWith("rejc_")) {
-        const senderChatId = String(body.callback_query.message?.chat?.id || body.callback_query.from?.id || "");
-        const senderUsername = (body.callback_query.from?.username || "").toLowerCase();
-        const adminChatId = process.env.TELEGRAM_CHAT_ID;
+      const callerChatId = String(body.callback_query.from?.id || body.callback_query.message?.chat?.id || "");
+      const callerUsername = (body.callback_query.from?.username || "").toLowerCase();
+      const adminChatId = process.env.TELEGRAM_CHAT_ID;
+      const isAdmin = callerChatId === adminChatId && callerUsername === 'cozy_look';
 
+      if (callbackData.startsWith("appr_") || callbackData.startsWith("rejc_")) {
         // Strict security verification: ONLY Admin (@cozy_look and matching TELEGRAM_CHAT_ID) can approve/reject
-        if (senderChatId !== adminChatId || senderUsername !== 'cozy_look') {
+        if (!isAdmin) {
           if (BOT_TOKEN && callbackQueryId) {
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
               method: 'POST',
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
                 })
               }).catch(console.error);
             }
-            await sendTelegramReply(senderChatId, `✅ Successfully approved Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})! Their link is now ACTIVE.`);
+            await sendTelegramReply(callerChatId, `✅ Successfully approved Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})! Their link is now ACTIVE.`);
             await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
           }
         } else {
@@ -127,7 +128,7 @@ export async function POST(req: Request) {
                 })
               }).catch(console.error);
             }
-            await sendTelegramReply(senderChatId, `🗑️ Successfully rejected and deleted Chat ID <code>${targetChatId}</code>!`);
+            await sendTelegramReply(callerChatId, `🗑️ Successfully rejected and deleted Chat ID <code>${targetChatId}</code>!`);
             await sendTelegramReply(targetChatId, `❌ <b>Request Rejected</b>\n\nYour subscription request was rejected. If you think this is a mistake, please contact @cozy_look.`);
           }
         }
@@ -154,8 +155,21 @@ export async function POST(req: Request) {
             .order('created_at', { ascending: false })
             .limit(1);
 
-          const customerName = dbRows?.[0]?.full_name || "N/A";
-          const customerPhone = dbRows?.[0]?.mobile_number || "N/A";
+          // Security Audit check: Verify if caller is Admin or exact active owner of this lead
+          let isOwner = isAdmin;
+          if (!isAdmin) {
+            const { data: aff } = await supabaseAdmin
+              .from('affiliate_links')
+              .select('affiliate_id, is_active')
+              .eq('chat_id', callerChatId)
+              .single();
+            if (aff?.affiliate_id && aff.is_active && dbRows?.[0]?.affiliate_id === aff.affiliate_id) {
+              isOwner = true;
+            }
+          }
+
+          const customerName = isOwner ? (dbRows?.[0]?.full_name || "N/A") : "🔒 [Protected/Hidden]";
+          const customerPhone = isOwner ? (dbRows?.[0]?.mobile_number || "N/A") : "🔒 [Protected/Hidden]";
 
           if (result.success && result.data) {
             const data = result.data;
@@ -188,16 +202,34 @@ export async function POST(req: Request) {
         const courier = parts.slice(2).join("_") || "Auto";
 
         if (trackingNumber) {
-          const { fetchLiveTrackingStatus } = await import("@/lib/tracking-service");
-          const { sendTelegramDocument } = await import("@/lib/telegram");
-          const result = await fetchLiveTrackingStatus(trackingNumber, courier);
-
           const { data: dbRows } = await supabaseAdmin
             .from('tracking_requests')
             .select('full_name, mobile_number, affiliate_id, created_at')
             .eq('tracking_number', trackingNumber)
             .order('created_at', { ascending: false })
             .limit(1);
+
+          // Strict Security Check: Only Admin or active owner can download full package history with PII
+          let isOwner = isAdmin;
+          if (!isAdmin) {
+            const { data: aff } = await supabaseAdmin
+              .from('affiliate_links')
+              .select('affiliate_id, is_active')
+              .eq('chat_id', callerChatId)
+              .single();
+            if (aff?.affiliate_id && aff.is_active && dbRows?.[0]?.affiliate_id === aff.affiliate_id) {
+              isOwner = true;
+            }
+          }
+
+          if (!isOwner) {
+            await sendTelegramReply(chatId, "❌ Access Denied: You can only export package history for leads generated through your own active affiliate link.");
+            return NextResponse.json({ ok: true });
+          }
+
+          const { fetchLiveTrackingStatus } = await import("@/lib/tracking-service");
+          const { sendTelegramDocument } = await import("@/lib/telegram");
+          const result = await fetchLiveTrackingStatus(trackingNumber, courier);
 
           const customerName = dbRows?.[0]?.full_name || "N/A (Direct query)";
           const customerPhone = dbRows?.[0]?.mobile_number || "N/A";
@@ -248,7 +280,6 @@ export async function POST(req: Request) {
         }
       } else if (callbackData === "export_all_csv") {
         const { sendTelegramDocument } = await import("@/lib/telegram");
-        const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID;
         let query = supabaseAdmin
           .from('tracking_requests')
           .select('tracking_number, courier_name, status, full_name, mobile_number, affiliate_id, created_at')
@@ -257,13 +288,13 @@ export async function POST(req: Request) {
         if (!isAdmin) {
           const { data: aff } = await supabaseAdmin
             .from('affiliate_links')
-            .select('affiliate_id')
-            .eq('chat_id', chatId)
+            .select('affiliate_id, is_active')
+            .eq('chat_id', callerChatId)
             .single();
-          if (aff?.affiliate_id) {
+          if (aff?.affiliate_id && aff.is_active) {
             query = query.eq('affiliate_id', aff.affiliate_id);
           } else {
-            await sendTelegramReply(chatId, "❌ Export is only permitted for registered affiliates and Admin.");
+            await sendTelegramReply(chatId, "❌ Access Denied: Only ACTIVE (approved) affiliates and Admin are allowed to export leads.");
             return NextResponse.json({ ok: true });
           }
         }
@@ -520,8 +551,21 @@ export async function POST(req: Request) {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      const customerName = dbRows?.[0]?.full_name || "N/A";
-      const customerPhone = dbRows?.[0]?.mobile_number || "N/A";
+      const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID && senderUsername.toLowerCase() === 'cozy_look';
+      let isOwner = isAdmin;
+      if (!isAdmin) {
+        const { data: aff } = await supabaseAdmin
+          .from('affiliate_links')
+          .select('affiliate_id, is_active')
+          .eq('chat_id', chatId)
+          .single();
+        if (aff?.affiliate_id && aff.is_active && dbRows?.[0]?.affiliate_id === aff.affiliate_id) {
+          isOwner = true;
+        }
+      }
+
+      const customerName = isOwner ? (dbRows?.[0]?.full_name || "N/A") : "🔒 [Protected/Hidden]";
+      const customerPhone = isOwner ? (dbRows?.[0]?.mobile_number || "N/A") : "🔒 [Protected/Hidden]";
 
       if (result.success && result.data) {
         const data = result.data;
@@ -548,7 +592,7 @@ export async function POST(req: Request) {
       }
     } else if (text.startsWith('/export')) {
       const { sendTelegramDocument } = await import("@/lib/telegram");
-      const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID;
+      const isAdmin = chatId === process.env.TELEGRAM_CHAT_ID && senderUsername.toLowerCase() === 'cozy_look';
       let query = supabaseAdmin
         .from('tracking_requests')
         .select('tracking_number, courier_name, status, full_name, mobile_number, affiliate_id, created_at')
@@ -557,13 +601,13 @@ export async function POST(req: Request) {
       if (!isAdmin) {
         const { data: aff } = await supabaseAdmin
           .from('affiliate_links')
-          .select('affiliate_id')
+          .select('affiliate_id, is_active')
           .eq('chat_id', chatId)
           .single();
-        if (aff?.affiliate_id) {
+        if (aff?.affiliate_id && aff.is_active) {
           query = query.eq('affiliate_id', aff.affiliate_id);
         } else {
-          await sendTelegramReply(chatId, "❌ /export command is only available for registered affiliates and Admin.");
+          await sendTelegramReply(chatId, "❌ Access Denied: Only ACTIVE (approved) affiliates and Admin are allowed to export leads.");
           return NextResponse.json({ ok: true });
         }
       }

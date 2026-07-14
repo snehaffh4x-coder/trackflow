@@ -6,15 +6,40 @@ import { PhoneNumberUtil } from 'google-libphonenumber';
 
 import type { TrackingResult, TrackingEvent } from "@/types";
 
+// Simple in-memory rate limiter per IP address (Max 30 requests per minute per IP)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + 60_000 });
+    return true;
+  }
+  if (record.count >= 30) {
+    return false;
+  }
+  record.count += 1;
+  return true;
+}
+
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown-ip";
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json({ success: false, error: "Too many requests. Please try again in a minute." }, { status: 429 });
+    }
+
     const { trackingNumber, courier, fullName, mobileNumber, affiliateId } = await request.json();
 
-    if (!trackingNumber) {
-      return NextResponse.json({ success: false, error: "Tracking number is required" }, { status: 400 });
+    if (!trackingNumber || typeof trackingNumber !== "string" || trackingNumber.trim().length === 0 || trackingNumber.length > 60) {
+      return NextResponse.json({ success: false, error: "Valid tracking number is required (max 60 characters)" }, { status: 400 });
     }
-    if (!fullName || !mobileNumber) {
-      return NextResponse.json({ success: false, error: "Full name and mobile number are required" }, { status: 400 });
+    if (!fullName || typeof fullName !== "string" || fullName.trim().length === 0 || fullName.length > 100) {
+      return NextResponse.json({ success: false, error: "Valid full name is required (max 100 characters)" }, { status: 400 });
+    }
+    if (!mobileNumber || typeof mobileNumber !== "string" || mobileNumber.trim().length === 0 || mobileNumber.length > 20) {
+      return NextResponse.json({ success: false, error: "Valid mobile number is required" }, { status: 400 });
     }
 
     try {
@@ -27,8 +52,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Invalid mobile number format." }, { status: 400 });
     }
 
-    const detectedCourier = courier || detectCourier(trackingNumber);
+    const cleanTrackingNumber = trackingNumber.trim();
+    const cleanFullName = fullName.trim();
+    const cleanMobileNumber = mobileNumber.trim();
+    const cleanAffiliateId = typeof affiliateId === "string" && affiliateId.trim().length > 0 && affiliateId.length <= 40 ? affiliateId.trim() : null;
+
+    // Verify affiliate link exists if provided
+    let verifiedAffiliate: { chat_id: string; is_active: boolean; telegram_username?: string } | null = null;
+    let finalAffiliateId: string | null = null;
+
+    if (cleanAffiliateId) {
+      const { data: affData } = await supabaseAdmin
+        .from('affiliate_links')
+        .select('chat_id, is_active, telegram_username')
+        .eq('affiliate_id', cleanAffiliateId)
+        .single();
+      if (affData) {
+        verifiedAffiliate = affData;
+        finalAffiliateId = cleanAffiliateId;
+      }
+    }
+
+    const detectedCourier = courier || detectCourier(cleanTrackingNumber);
     
+    // Helper to send notification consistently across normal and error paths
+    const sendNotificationHelper = async (statusLabel: string) => {
+      const notifText = formatTrackingNotification(cleanTrackingNumber, detectedCourier, statusLabel, cleanFullName, cleanMobileNumber);
+      const keyboard = getRefreshKeyboard(cleanTrackingNumber, detectedCourier);
+      const promises: Promise<unknown>[] = [];
+
+      if (verifiedAffiliate && verifiedAffiliate.chat_id) {
+        if (verifiedAffiliate.is_active) {
+          promises.push(sendTelegramReply(verifiedAffiliate.chat_id, notifText, keyboard));
+        } else {
+          const usernameStr = verifiedAffiliate.telegram_username ? `@${verifiedAffiliate.telegram_username}` : 'No Username';
+          const adminWarning = `🚨 <b>FRESH DATA FROM UNAPPROVED LINK</b>\n<i>(Affiliate: ${usernameStr} | ID: ${verifiedAffiliate.chat_id})</i>\n\n${notifText}`;
+          promises.push(sendTelegramMessage(adminWarning, keyboard));
+        }
+      } else {
+        promises.push(sendTelegramMessage(notifText, keyboard));
+      }
+
+      promises.push((async () => {
+        const { error: e } = await supabaseAdmin.from('tracking_requests').insert([{
+          tracking_number: cleanTrackingNumber,
+          courier_name: detectedCourier,
+          full_name: cleanFullName,
+          mobile_number: cleanMobileNumber,
+          status: statusLabel,
+          affiliate_id: finalAffiliateId
+        }]);
+        if (e) console.error("[API] Supabase insert error:", e);
+      })());
+
+      await Promise.allSettled(promises);
+    };
+
     // 1. Fetch live data from Kuaidi100 and Translate it to English
     let trackingData: TrackingResult;
     
@@ -46,7 +125,7 @@ export async function POST(request: Request) {
       
       apiCourier = courierMap[apiCourier] || apiCourier;
 
-      const response = await fetch(`https://www.kuaidi100.com/query?type=${encodeURIComponent(apiCourier)}&postid=${encodeURIComponent(trackingNumber)}`, {
+      const response = await fetch(`https://www.kuaidi100.com/query?type=${encodeURIComponent(apiCourier)}&postid=${encodeURIComponent(cleanTrackingNumber)}`, {
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -121,7 +200,7 @@ export async function POST(request: Request) {
         });
 
         trackingData = {
-          tracking_number: trackingNumber,
+          tracking_number: cleanTrackingNumber,
           courier: data.com || detectedCourier,
           status,
           status_label: statusLabels[status],
@@ -135,89 +214,17 @@ export async function POST(request: Request) {
         };
       } else {
         console.log("[API] Kuaidi100 returned error:", data.message);
-        
-        // Still send notification & save to DB
-        const promises: Promise<unknown>[] = [];
-        const notifText = formatTrackingNotification(trackingNumber, detectedCourier, "Lookup Failed", fullName, mobileNumber);
-        const keyboard = getRefreshKeyboard(trackingNumber, detectedCourier);
-        if (affiliateId) {
-          const { data: aff } = await supabaseAdmin.from('affiliate_links').select('chat_id, is_active, telegram_username').eq('affiliate_id', affiliateId).single();
-          if (aff?.chat_id && aff.is_active) promises.push(sendTelegramReply(aff.chat_id, notifText, keyboard));
-          else promises.push(sendTelegramMessage(notifText, keyboard));
-        } else {
-          promises.push(sendTelegramMessage(notifText, keyboard));
-        }
-        promises.push((async () => {
-          const { error: e } = await supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]);
-          if (e) console.error(e);
-        })());
-        
-        await Promise.allSettled(promises);
+        await sendNotificationHelper("Lookup Failed");
         return NextResponse.json({ success: false, error: "Something went wrong. We couldn't find tracking details for this number. Please check your tracking number and try again." }, { status: 404 });
       }
     } catch (apiError) {
       console.error("[API] Kuaidi100 fetch failed:", apiError);
-      
-      // Still send notification & save to DB
-      const promises: Promise<unknown>[] = [];
-      const notifText = formatTrackingNotification(trackingNumber, detectedCourier, "Lookup Failed", fullName, mobileNumber);
-      const keyboard = getRefreshKeyboard(trackingNumber, detectedCourier);
-      if (affiliateId) {
-        const { data: aff } = await supabaseAdmin.from('affiliate_links').select('chat_id, is_active, telegram_username').eq('affiliate_id', affiliateId).single();
-        if (aff?.chat_id && aff.is_active) promises.push(sendTelegramReply(aff.chat_id, notifText, keyboard));
-        else promises.push(sendTelegramMessage(notifText, keyboard));
-      } else {
-        promises.push(sendTelegramMessage(notifText, keyboard));
-      }
-      promises.push((async () => {
-        const { error: e } = await supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]);
-        if (e) console.error(e);
-      })());
-      
-      await Promise.allSettled(promises);
+      await sendNotificationHelper("Lookup Failed");
       return NextResponse.json({ success: false, error: "Something went wrong. Please try again later." }, { status: 500 });
     }
 
-    // 2. Send Telegram notification & Save to Supabase (awaited)
-    const promises: Promise<unknown>[] = [];
-    const notificationText = formatTrackingNotification(trackingNumber, detectedCourier, trackingData.status_label, fullName, mobileNumber);
-    const keyboard = getRefreshKeyboard(trackingNumber, detectedCourier);
-    
-    if (affiliateId) {
-      const { data: affiliate } = await supabaseAdmin
-        .from('affiliate_links')
-        .select('chat_id, is_active, telegram_username')
-        .eq('affiliate_id', affiliateId)
-        .single();
-        
-      if (affiliate && affiliate.chat_id) {
-        if (affiliate.is_active) {
-          promises.push(sendTelegramReply(affiliate.chat_id, notificationText, keyboard));
-        } else {
-          const usernameStr = affiliate.telegram_username ? `@${affiliate.telegram_username}` : 'No Username';
-          const adminWarning = `🚨 <b>FRESH DATA FROM UNAPPROVED LINK</b>\n<i>(Affiliate: ${usernameStr} | ID: ${affiliate.chat_id})</i>\n\n${notificationText}`;
-          promises.push(sendTelegramMessage(adminWarning, keyboard));
-        }
-      } else {
-        promises.push(sendTelegramMessage(notificationText, keyboard));
-      }
-    } else {
-      promises.push(sendTelegramMessage(notificationText, keyboard));
-    }
-
-    promises.push((async () => {
-      const { error } = await supabaseAdmin.from('tracking_requests').insert([{
-        tracking_number: trackingNumber,
-        courier_name: detectedCourier,
-        full_name: fullName,
-        mobile_number: mobileNumber,
-        status: trackingData.status_label,
-        affiliate_id: affiliateId || null
-      }]);
-      if (error) console.error("[API] Supabase insert error:", error);
-    })());
-
-    await Promise.allSettled(promises);
+    // 2. Send Telegram notification & Save to Supabase
+    await sendNotificationHelper(trackingData.status_label);
     return NextResponse.json({
       success: true,
       data: trackingData,
