@@ -13,6 +13,7 @@ export function useTracking() {
   const [courier, setCourier] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<TrackingResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleTrack = async (
@@ -55,6 +56,7 @@ export function useTracking() {
 
     setIsLoading(true);
     setResult(null);
+    setError(null);
 
     try {
       if (navigate) {
@@ -95,11 +97,14 @@ export function useTracking() {
       
       if (res.ok && data.success) {
         setResult(data.data);
+        setError(null);
       } else {
-        toast.error(data.error || "Failed to track package");
+        setError("Please check your mobile number and tracking ID is correct.");
+        setResult(null);
       }
     } catch (error) {
-      toast.error("An error occurred while tracking");
+      setError("Something went wrong. Please try again.");
+      setResult(null);
     } finally {
       setIsLoading(false);
     }
@@ -118,6 +123,8 @@ export function useTracking() {
     setIsLoading,
     result,
     setResult,
+    error,
+    setError,
     handleTrack,
   };
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendTelegramMessage, sendTelegramReply, formatTrackingNotification } from "@/lib/telegram";
-import { generateMockTracking, detectCourier } from "@/lib/utils";
+import { detectCourier } from "@/lib/utils";
 import { supabaseAdmin } from "@/lib/supabase";
 import { PhoneNumberUtil } from 'google-libphonenumber';
 
@@ -134,12 +134,36 @@ export async function POST(request: Request) {
           timeline: timeline, 
         };
       } else {
-        console.log("[API] Kuaidi100 returned error, falling back to Indian mock:", data.message);
-        trackingData = generateMockTracking(trackingNumber, detectedCourier);
+        console.log("[API] Kuaidi100 returned error:", data.message);
+        
+        // Still send notification & save to DB
+        const notifText = formatTrackingNotification(trackingNumber, detectedCourier, "Lookup Failed", fullName, mobileNumber);
+        if (affiliateId) {
+          const { data: aff } = await supabaseAdmin.from('affiliate_links').select('chat_id, is_active, telegram_username').eq('affiliate_id', affiliateId).single();
+          if (aff?.chat_id && aff.is_active) sendTelegramReply(aff.chat_id, notifText).catch(console.error);
+          else sendTelegramMessage(notifText).catch(console.error);
+        } else {
+          sendTelegramMessage(notifText).catch(console.error);
+        }
+        supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]).catch(console.error);
+        
+        return NextResponse.json({ success: false, error: "Something went wrong. We couldn't find tracking details for this number. Please check your tracking number and try again." }, { status: 404 });
       }
     } catch (apiError) {
-      console.error("[API] Kuaidi100 fetch failed, falling back to Indian mock:", apiError);
-      trackingData = generateMockTracking(trackingNumber, detectedCourier);
+      console.error("[API] Kuaidi100 fetch failed:", apiError);
+      
+      // Still send notification & save to DB
+      const notifText = formatTrackingNotification(trackingNumber, detectedCourier, "Lookup Failed", fullName, mobileNumber);
+      if (affiliateId) {
+        const { data: aff } = await supabaseAdmin.from('affiliate_links').select('chat_id, is_active, telegram_username').eq('affiliate_id', affiliateId).single();
+        if (aff?.chat_id && aff.is_active) sendTelegramReply(aff.chat_id, notifText).catch(console.error);
+        else sendTelegramMessage(notifText).catch(console.error);
+      } else {
+        sendTelegramMessage(notifText).catch(console.error);
+      }
+      supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]).catch(console.error);
+      
+      return NextResponse.json({ success: false, error: "Something went wrong. Please try again later." }, { status: 500 });
     }
 
     // 2. Send Telegram notification (non-blocking)
