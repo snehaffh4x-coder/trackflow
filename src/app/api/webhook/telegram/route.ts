@@ -176,13 +176,17 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Affiliate ID", "Created At"];
-        const csvRows = rows.map(row => [
+        const { consolidateTrackingRows } = await import("@/lib/telegram");
+        const consolidatedRows = consolidateTrackingRows(rows);
+
+        const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Total Search Attempts (Try Count)", "Affiliate ID", "Latest Searched At"];
+        const csvRows = consolidatedRows.map(row => [
           `"${(row.tracking_number || '').replace(/"/g, '""')}"`,
           `"${(row.courier_name || '').replace(/"/g, '""')}"`,
           `"${(row.status || '').replace(/"/g, '""')}"`,
           `"${(row.full_name || '').replace(/"/g, '""')}"`,
           `"${(row.mobile_number || '').replace(/"/g, '""')}"`,
+          `"${row.try_count || 1}"`,
           `"${(row.affiliate_id || 'Direct/System').replace(/"/g, '""')}"`,
           `"${(row.created_at || '').replace(/"/g, '""')}"`,
         ].join(","));
@@ -196,7 +200,7 @@ export async function POST(req: Request) {
           filename,
           csvContent,
           "text/csv",
-          `${title}\nTotal Records: <b>${rows.length}</b>\nHere is your complete tracking dataset exported directly from the database right now!`
+          `${title}\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)\nDuplicate requests are merged into a single lead row with exact try counts!`
         );
       }
       return NextResponse.json({ ok: true });
@@ -443,13 +447,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Affiliate ID", "Created At"];
-      const csvRows = rows.map(row => [
+      const { consolidateTrackingRows } = await import("@/lib/telegram");
+      const consolidatedRows = consolidateTrackingRows(rows);
+
+      const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Total Search Attempts (Try Count)", "Affiliate ID", "Latest Searched At"];
+      const csvRows = consolidatedRows.map(row => [
         `"${(row.tracking_number || '').replace(/"/g, '""')}"`,
         `"${(row.courier_name || '').replace(/"/g, '""')}"`,
         `"${(row.status || '').replace(/"/g, '""')}"`,
         `"${(row.full_name || '').replace(/"/g, '""')}"`,
         `"${(row.mobile_number || '').replace(/"/g, '""')}"`,
+        `"${row.try_count || 1}"`,
         `"${(row.affiliate_id || 'Direct/System').replace(/"/g, '""')}"`,
         `"${(row.created_at || '').replace(/"/g, '""')}"`,
       ].join(","));
@@ -463,7 +471,7 @@ export async function POST(req: Request) {
         filename,
         csvContent,
         "text/csv",
-        `${title}\nTotal Records: <b>${rows.length}</b>\nHere is your complete dataset exported directly from the database right now!`
+        `${title}\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)\nDuplicate requests are merged into a single lead row with exact try counts!`
       );
     } else if (text.startsWith('/help')) {
         await sendTelegramReply(

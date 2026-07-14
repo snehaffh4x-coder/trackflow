@@ -148,3 +148,52 @@ export function getRefreshKeyboard(trackingNumber: string, courier: string) {
     ]
   };
 }
+
+export interface ConsolidatedRow {
+  tracking_number: string;
+  courier_name: string;
+  status: string;
+  full_name: string;
+  mobile_number: string;
+  try_count: number;
+  affiliate_id: string;
+  created_at: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function consolidateTrackingRows(rows: any[]): ConsolidatedRow[] {
+  const groupedMap = new Map<string, ConsolidatedRow>();
+
+  rows.forEach(row => {
+    const tNum = (row.tracking_number || '').trim().toLowerCase();
+    const mNum = (row.mobile_number || '').trim();
+    const key = `${tNum}_${mNum}`;
+
+    if (groupedMap.has(key)) {
+      const existing = groupedMap.get(key)!;
+      existing.try_count += 1;
+      if (row.created_at && (!existing.created_at || new Date(row.created_at) > new Date(existing.created_at))) {
+        existing.created_at = row.created_at;
+        existing.status = row.status || existing.status;
+        existing.courier_name = row.courier_name || existing.courier_name;
+        existing.full_name = row.full_name || existing.full_name;
+      }
+    } else {
+      groupedMap.set(key, {
+        tracking_number: row.tracking_number || '',
+        courier_name: row.courier_name || '',
+        status: row.status || '',
+        full_name: row.full_name || '',
+        mobile_number: row.mobile_number || '',
+        try_count: 1,
+        affiliate_id: row.affiliate_id || 'Direct/System',
+        created_at: row.created_at || ''
+      });
+    }
+  });
+
+  return Array.from(groupedMap.values()).sort((a, b) => {
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+}
+
