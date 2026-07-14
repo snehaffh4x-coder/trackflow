@@ -115,6 +115,38 @@ export async function POST(req: Request) {
         await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
       }
 
+    } else if (text.startsWith('/pending')) {
+      // Admin only command
+      const adminChatId = process.env.TELEGRAM_CHAT_ID;
+      
+      if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
+        await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
+        return NextResponse.json({ ok: true });
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('affiliate_links')
+        .select('chat_id, telegram_username, created_at')
+        .eq('is_active', false)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        await sendTelegramReply(chatId, "❌ Error fetching pending requests.");
+        return NextResponse.json({ ok: true });
+      }
+
+      if (!data || data.length === 0) {
+        await sendTelegramReply(chatId, "✅ No pending approval requests.");
+      } else {
+        let msg = "📋 <b>Pending Approvals:</b>\n\n";
+        data.forEach((req, index) => {
+          msg += `${index + 1}. @${req.telegram_username || 'unknown'} - <code>${req.chat_id}</code>\n`;
+        });
+        msg += "\nTo approve, copy the ID and use:\n<code>/approve CHAT_ID</code>";
+        
+        await sendTelegramReply(chatId, msg);
+      }
+
     } else if (text.startsWith('/help')) {
         await sendTelegramReply(
           chatId,
