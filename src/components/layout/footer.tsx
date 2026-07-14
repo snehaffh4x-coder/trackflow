@@ -20,7 +20,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed max-w-xs">
-              The premium, futuristic shipment tracking platform. Real-time updates, AI predictions, and beautiful design.
+              Track your packages across all major Indian couriers in one place.
             </p>
             <div className="flex items-center gap-4 pt-2">
               <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
