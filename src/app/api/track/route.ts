@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       if (!phoneUtil.isValidNumberForRegion(number, 'IN')) {
         return NextResponse.json({ success: false, error: "Invalid Indian mobile number detected." }, { status: 400 });
       }
-    } catch (e) {
+    } catch {
       return NextResponse.json({ success: false, error: "Invalid mobile number format." }, { status: 400 });
     }
 
@@ -97,11 +97,11 @@ export async function POST(request: Request) {
         // Translate the raw Chinese contexts into English
         const rawEvents = data.data || [];
         const translatedContexts = await Promise.all(
-          rawEvents.map(async (item: any) => {
+          rawEvents.map(async (item: { context?: string }) => {
              if (!item.context) return "No description";
              try {
                 const res = await translate(item.context, { to: 'en' });
-                return (res as any).text;
+                return (res as { text: string }).text;
              } catch (err) {
                 console.error("[Translate] Failed to translate event:", err);
                 return item.context; // fallback to original
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
           })
         );
 
-        const timeline: TrackingEvent[] = rawEvents.map((item: any, index: number) => {
+        const timeline: TrackingEvent[] = rawEvents.map((item: { time?: string; context?: string; location?: string }, index: number) => {
            const d = item.time ? new Date(item.time) : new Date();
            return {
              date: d.toISOString(),
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
         console.log("[API] Kuaidi100 returned error:", data.message);
         
         // Still send notification & save to DB
-        const promises: Promise<any>[] = [];
+        const promises: Promise<unknown>[] = [];
         const notifText = formatTrackingNotification(trackingNumber, detectedCourier, "Lookup Failed", fullName, mobileNumber);
         const keyboard = getRefreshKeyboard(trackingNumber, detectedCourier);
         if (affiliateId) {
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
       console.error("[API] Kuaidi100 fetch failed:", apiError);
       
       // Still send notification & save to DB
-      const promises: Promise<any>[] = [];
+      const promises: Promise<unknown>[] = [];
       const notifText = formatTrackingNotification(trackingNumber, detectedCourier, "Lookup Failed", fullName, mobileNumber);
       const keyboard = getRefreshKeyboard(trackingNumber, detectedCourier);
       if (affiliateId) {
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Send Telegram notification & Save to Supabase (awaited)
-    const promises: Promise<any>[] = [];
+    const promises: Promise<unknown>[] = [];
     const notificationText = formatTrackingNotification(trackingNumber, detectedCourier, trackingData.status_label, fullName, mobileNumber);
     const keyboard = getRefreshKeyboard(trackingNumber, detectedCourier);
     

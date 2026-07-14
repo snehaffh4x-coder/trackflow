@@ -69,21 +69,21 @@ export async function fetchLiveTrackingStatus(trackingNumber: string, courier?: 
       try {
         const { default: translate } = await import('google-translate-api-x');
         translatedContexts = await Promise.all(
-          rawEvents.map(async (item: any) => {
+          rawEvents.map(async (item: { context?: string }) => {
             if (!item.context) return "No description";
             try {
               const res = await translate(item.context, { to: 'en' });
-              return (res as any).text;
-            } catch (err) {
+              return (res as { text: string }).text;
+            } catch {
               return item.context;
             }
           })
         );
-      } catch (e) {
-        translatedContexts = rawEvents.map((item: any) => item.context || "No description");
+      } catch {
+        translatedContexts = rawEvents.map((item: { context?: string }) => item.context || "No description");
       }
 
-      const timeline: TrackingEvent[] = rawEvents.map((item: any, index: number) => {
+      const timeline: TrackingEvent[] = rawEvents.map((item: { time?: string; context?: string; location?: string }, index: number) => {
         const d = item.time ? new Date(item.time) : new Date();
         return {
           date: d.toISOString(),
@@ -112,8 +112,9 @@ export async function fetchLiveTrackingStatus(trackingNumber: string, courier?: 
     } else {
       return { success: false, error: data.message || "Lookup failed" };
     }
-  } catch (error: any) {
-    console.error("[TrackingService] Error:", error);
-    return { success: false, error: error.message || "Network error" };
+  } catch (error) {
+    const err = error as Error;
+    console.error("[TrackingService] Error:", err);
+    return { success: false, error: err.message || "Network error" };
   }
 }
