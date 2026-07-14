@@ -141,7 +141,7 @@ export function getRefreshKeyboard(trackingNumber: string, courier: string) {
       ],
       [
         {
-          text: "📊 Export All Tracking Data (CSV)",
+          text: "📊 Export All Leads (CSV & TXT)",
           callback_data: "export_all_csv"
         }
       ]
@@ -196,4 +196,37 @@ export function consolidateTrackingRows(rows: any[]): ConsolidatedRow[] {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 }
+
+export function generateLeadsSummaryTxt(rows: ConsolidatedRow[], isAdmin: boolean): string {
+  const title = isAdmin ? "ALL PLATFORM USER LEADS & TRACKING REPORT" : "YOUR AFFILIATE LEADS & TRACKING REPORT";
+  const nowStr = new Date().toUTCString();
+  
+  let txt = `========================================================\n`;
+  txt += `       TRACKFLOW — ${title}       \n`;
+  txt += `========================================================\n`;
+  txt += `Report Generated (UTC) : ${nowStr}\n`;
+  txt += `Total Consolidated Leads: ${rows.length}\n`;
+  txt += `========================================================\n\n`;
+
+  if (rows.length === 0) {
+    txt += `No records found right now.\n`;
+    return txt;
+  }
+
+  rows.forEach((row, index) => {
+    txt += `[Lead #${index + 1}]\n`;
+    txt += `👤 Customer Name : ${row.full_name || "N/A"}\n`;
+    txt += `📱 Mobile Number : ${row.mobile_number || "N/A"}\n`;
+    txt += `🔢 Tracking ID   : ${row.tracking_number || "N/A"}\n`;
+    txt += `🚚 Courier       : ${row.courier_name || "Auto"}\n`;
+    txt += `📊 Latest Status : ${row.status || "Checking..."}\n`;
+    txt += `🔄 Search Count  : ${row.try_count || 1} time(s) checked\n`;
+    txt += `🔗 Affiliate/Src : ${row.affiliate_id || "Direct/System"}\n`;
+    txt += `🕐 Latest Tracked: ${row.created_at ? row.created_at.replace("T", " ").slice(0, 19) : "N/A"} UTC\n`;
+    txt += `--------------------------------------------------------\n\n`;
+  });
+
+  return txt;
+}
+
 

@@ -176,7 +176,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        const { consolidateTrackingRows } = await import("@/lib/telegram");
+        const { consolidateTrackingRows, generateLeadsSummaryTxt } = await import("@/lib/telegram");
         const consolidatedRows = consolidateTrackingRows(rows);
 
         const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Total Search Attempts (Try Count)", "Affiliate ID", "Latest Searched At"];
@@ -192,15 +192,26 @@ export async function POST(req: Request) {
         ].join(","));
 
         const csvContent = [headers.join(","), ...csvRows].join("\n");
-        const filename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
-        const title = isAdmin ? "📊 <b>All Platform Tracking Data (CSV Export)</b>" : "📊 <b>Your Affiliate Leads Data (CSV Export)</b>";
+        const csvFilename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
+        const title = isAdmin ? "📊 <b>All Platform Leads Data</b>" : "📊 <b>Your Affiliate Leads Data</b>";
 
         await sendTelegramDocument(
           chatId,
-          filename,
+          csvFilename,
           csvContent,
           "text/csv",
-          `${title}\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)\nDuplicate requests are merged into a single lead row with exact try counts!`
+          `${title} (CSV Format)\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)`
+        );
+
+        const txtContent = generateLeadsSummaryTxt(consolidatedRows, isAdmin);
+        const txtFilename = isAdmin ? `trackflow_all_leads_summary_${new Date().toISOString().slice(0, 10)}.txt` : `trackflow_my_leads_summary_${new Date().toISOString().slice(0, 10)}.txt`;
+
+        await sendTelegramDocument(
+          chatId,
+          txtFilename,
+          txtContent,
+          "text/plain",
+          `📄 <b>${title} (TXT Readable Format)</b>\nFormatted cleanly just like Telegram alerts so you can easily read & review all ${consolidatedRows.length} leads without Excel!`
         );
       }
       return NextResponse.json({ ok: true });
@@ -447,7 +458,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      const { consolidateTrackingRows } = await import("@/lib/telegram");
+      const { consolidateTrackingRows, generateLeadsSummaryTxt } = await import("@/lib/telegram");
       const consolidatedRows = consolidateTrackingRows(rows);
 
       const headers = ["Tracking Number", "Courier", "Status", "Full Name", "Mobile Number", "Total Search Attempts (Try Count)", "Affiliate ID", "Latest Searched At"];
@@ -463,15 +474,26 @@ export async function POST(req: Request) {
       ].join(","));
 
       const csvContent = [headers.join(","), ...csvRows].join("\n");
-      const filename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
-      const title = isAdmin ? "📊 <b>All Platform Tracking Data (CSV Export)</b>" : "📊 <b>Your Affiliate Leads Data (CSV Export)</b>";
+      const csvFilename = isAdmin ? `trackflow_all_tracking_export_${new Date().toISOString().slice(0, 10)}.csv` : `trackflow_my_leads_${new Date().toISOString().slice(0, 10)}.csv`;
+      const title = isAdmin ? "📊 <b>All Platform Leads Data</b>" : "📊 <b>Your Affiliate Leads Data</b>";
 
       await sendTelegramDocument(
         chatId,
-        filename,
+        csvFilename,
         csvContent,
         "text/csv",
-        `${title}\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)\nDuplicate requests are merged into a single lead row with exact try counts!`
+        `${title} (CSV Format)\nTotal Consolidated Leads: <b>${consolidatedRows.length}</b> (Grouped from ${rows.length} total search attempts)`
+      );
+
+      const txtContent = generateLeadsSummaryTxt(consolidatedRows, isAdmin);
+      const txtFilename = isAdmin ? `trackflow_all_leads_summary_${new Date().toISOString().slice(0, 10)}.txt` : `trackflow_my_leads_summary_${new Date().toISOString().slice(0, 10)}.txt`;
+
+      await sendTelegramDocument(
+        chatId,
+        txtFilename,
+        txtContent,
+        "text/plain",
+        `📄 <b>${title} (TXT Readable Format)</b>\nFormatted cleanly just like Telegram alerts so you can easily read & review all ${consolidatedRows.length} leads without Excel!`
       );
     } else if (text.startsWith('/help')) {
         await sendTelegramReply(
