@@ -38,7 +38,7 @@ export function TrackingSearch() {
   }, [setTrackingNumber, setCourier, setFullName, setMobileNumber]);
 
   return (
-    <div className="max-w-2xl mx-auto w-full">
+    <div className="max-w-2xl mx-auto w-full bg-neutral-900/80 border border-white/10 rounded-2xl p-5">
       <form 
         onSubmit={(e) => handleTrack(e, true)} 
         className="flex flex-col gap-3"
@@ -49,7 +49,7 @@ export function TrackingSearch() {
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Full Name"
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+            className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
             required
           />
           <input
@@ -57,7 +57,7 @@ export function TrackingSearch() {
             onChange={(e) => setMobileNumber(e.target.value)}
             placeholder="Mobile Number"
             type="tel"
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+            className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
             required
           />
         </div>
@@ -70,7 +70,7 @@ export function TrackingSearch() {
               value={trackingNumber}
               onChange={(e) => setTrackingNumber(e.target.value)}
               placeholder="Tracking number"
-              className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+              className="w-full pl-10 pr-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
               required
             />
           </div>
@@ -81,7 +81,7 @@ export function TrackingSearch() {
               value={courier}
               onChange={(e) => setCourier(e.target.value)}
               placeholder="Courier (optional)"
-              className="w-full sm:w-44 pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+              className="w-full sm:w-44 pl-10 pr-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
             />
           </div>
 

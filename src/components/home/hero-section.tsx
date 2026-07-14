@@ -12,13 +12,11 @@ export function HeroSection() {
           src="/hero-bg.png"
           alt="Logistics network"
           fill
-          className="object-cover"
+          className="object-cover opacity-20"
           priority
           quality={90}
         />
-        {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-black/70" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-transparent to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />
       </div>
 
       {/* Content */}
