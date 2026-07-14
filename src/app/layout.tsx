@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { AuroraBackground } from "@/components/ui/aurora-background";
+import { SecurityGuard } from "@/components/security/security-guard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,6 +71,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased min-h-screen flex flex-col font-sans`}
       >
         <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
+          <SecurityGuard />
           <AuroraBackground />
           <div className="relative z-10 flex flex-col min-h-screen">
             <Navbar />

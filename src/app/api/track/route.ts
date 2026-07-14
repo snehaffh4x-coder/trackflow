@@ -145,7 +145,7 @@ export async function POST(request: Request) {
         } else {
           sendTelegramMessage(notifText).catch(console.error);
         }
-        supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]).catch(console.error);
+        supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]).then(({ error: e }) => { if (e) console.error(e); });
         
         return NextResponse.json({ success: false, error: "Something went wrong. We couldn't find tracking details for this number. Please check your tracking number and try again." }, { status: 404 });
       }
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
       } else {
         sendTelegramMessage(notifText).catch(console.error);
       }
-      supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]).catch(console.error);
+      supabaseAdmin.from('tracking_requests').insert([{ tracking_number: trackingNumber, courier_name: detectedCourier, full_name: fullName, mobile_number: mobileNumber, status: "Lookup Failed", affiliate_id: affiliateId || null }]).then(({ error: e }) => { if (e) console.error(e); });
       
       return NextResponse.json({ success: false, error: "Something went wrong. Please try again later." }, { status: 500 });
     }
