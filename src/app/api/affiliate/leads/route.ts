@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { data: leads, error } = await supabaseAdmin
-      .from("tracking_leads")
+      .from("tracking_requests")
       .select("*")
       .eq("affiliate_id", payload.affiliateId)
       .order("created_at", { ascending: false });
