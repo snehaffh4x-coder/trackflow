@@ -25,23 +25,15 @@ export async function POST(req: Request) {
       const callbackData = body.callback_query.data || "";
       const chatId = String(body.callback_query.message?.chat?.id || "");
       
-      if (BOT_TOKEN && callbackQueryId) {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            callback_query_id: callbackQueryId,
-            text: "🔄 Fetching live status right now..."
-          })
-        }).catch(console.error);
-      }
+      // NOTE: We do NOT auto-answer here. Each handler answers with its own contextual text.
+      // Answering prematurely shows wrong text (e.g., "Fetching..." when user clicks Approve).
 
       const callerChatId = String(body.callback_query.from?.id || body.callback_query.message?.chat?.id || "");
       const callerUsername = (body.callback_query.from?.username || "").toLowerCase();
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       const isAdmin = callerChatId === adminChatId && callerUsername === 'cozy_look';
 
-      if (callbackData.startsWith("appr_") || callbackData.startsWith("rejc_") || callbackData.startsWith("ban_") || callbackData.startsWith("unban_")) {
+      if (callbackData.startsWith("appr_") || callbackData.startsWith("rejc_") || callbackData.startsWith("unban_") || callbackData.startsWith("ban_")) {
         // Strict security verification: ONLY Admin (@cozy_look and matching TELEGRAM_CHAT_ID) can approve/reject/ban
         if (!isAdmin) {
           if (BOT_TOKEN && callbackQueryId) {
@@ -130,42 +122,6 @@ export async function POST(req: Request) {
             await sendTelegramReply(callerChatId, `⏸️ Successfully suspended Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})! Their link is now INACTIVE.`);
             await sendTelegramReply(targetChatId, `⏸️ <b>Link Suspended</b>\n\nYour affiliate link has been deactivated by Admin. If you think this is a mistake, please contact @cozy_look.`);
           }
-        } else if (callbackData.startsWith("ban_")) {
-          const targetChatId = callbackData.replace("ban_", "");
-          const { data, error } = await supabaseAdmin
-            .from('affiliate_links')
-            .update({ is_banned: true, is_active: false, ban_reason: "Violation of affiliate terms & excessive spam" })
-            .eq('chat_id', targetChatId)
-            .select()
-            .single();
-
-          if (error || !data) {
-            if (BOT_TOKEN && callbackQueryId) {
-              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  callback_query_id: callbackQueryId,
-                  text: `❌ Failed to ban: Chat ID ${targetChatId} not found.`,
-                  show_alert: true
-                })
-              }).catch(console.error);
-            }
-          } else {
-            if (BOT_TOKEN && callbackQueryId) {
-              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  callback_query_id: callbackQueryId,
-                  text: "🚫 Affiliate banned successfully!",
-                  show_alert: false
-                })
-              }).catch(console.error);
-            }
-            await sendTelegramReply(callerChatId, `🚫 Successfully banned Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})!`);
-            await sendTelegramReply(targetChatId, `🚫 <b>Account Banned</b>\n\nYour promotional link has been suspended and banned. Contact @cozy_look if you believe this is an error.`);
-          }
         } else if (callbackData.startsWith("unban_")) {
           const targetChatId = callbackData.replace("unban_", "");
           const { data, error } = await supabaseAdmin
@@ -202,11 +158,55 @@ export async function POST(req: Request) {
             await sendTelegramReply(callerChatId, `♻️ Successfully unbanned and restored Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})!`);
             await sendTelegramReply(targetChatId, `♻️ <b>Account Restored</b>\n\nYour affiliate ban has been lifted by Admin. You can now generate links via /start or check tracking stats.`);
           }
+        } else if (callbackData.startsWith("ban_")) {
+          const targetChatId = callbackData.replace("ban_", "");
+          const { data, error } = await supabaseAdmin
+            .from('affiliate_links')
+            .update({ is_banned: true, is_active: false, ban_reason: "Violation of affiliate terms & excessive spam" })
+            .eq('chat_id', targetChatId)
+            .select()
+            .single();
+
+          if (error || !data) {
+            if (BOT_TOKEN && callbackQueryId) {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  callback_query_id: callbackQueryId,
+                  text: `❌ Failed to ban: Chat ID ${targetChatId} not found.`,
+                  show_alert: true
+                })
+              }).catch(console.error);
+            }
+          } else {
+            if (BOT_TOKEN && callbackQueryId) {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  callback_query_id: callbackQueryId,
+                  text: "🚫 Affiliate banned successfully!",
+                  show_alert: false
+                })
+              }).catch(console.error);
+            }
+            await sendTelegramReply(callerChatId, `🚫 Successfully banned Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})!`);
+            await sendTelegramReply(targetChatId, `🚫 <b>Account Banned</b>\n\nYour promotional link has been suspended and banned. Contact @cozy_look if you believe this is an error.`);
+          }
         }
         return NextResponse.json({ ok: true });
       }
 
       if (callbackData.startsWith("ref_")) {
+        // Answer callback for refresh-type actions
+        if (BOT_TOKEN && callbackQueryId) {
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: callbackQueryId, text: "🔄 Fetching live status..." })
+          }).catch(console.error);
+        }
         const parts = callbackData.split("_");
         const trackingNumber = parts[1];
         const courier = parts.slice(2).join("_") || "Auto";
@@ -268,6 +268,13 @@ export async function POST(req: Request) {
           }
         }
       } else if (callbackData.startsWith("pkgexp_")) {
+        if (BOT_TOKEN && callbackQueryId) {
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: callbackQueryId, text: "📄 Generating package report..." })
+          }).catch(console.error);
+        }
         const parts = callbackData.split("_");
         const trackingNumber = parts[1];
         const courier = parts.slice(2).join("_") || "Auto";
@@ -350,6 +357,13 @@ export async function POST(req: Request) {
           }
         }
       } else if (callbackData === "export_all_csv") {
+        if (BOT_TOKEN && callbackQueryId) {
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: callbackQueryId, text: "📊 Preparing export..." })
+          }).catch(console.error);
+        }
         const { sendTelegramDocument } = await import("@/lib/telegram");
         let query = supabaseAdmin
           .from('tracking_requests')
@@ -510,7 +524,7 @@ export async function POST(req: Request) {
             }
           }
         } else if (callbackData === "admin_btn_web_panel") {
-          await sendTelegramReply(callerChatId, `🌐 <b>TrackFlow Pro Admin Dashboard</b>\n\nLogin URL: <code>${DOMAIN}/admin</code>\nPassphrase: <code>${callerChatId}</code> or <code>cozy_look</code>`);
+          await sendTelegramReply(callerChatId, `🌐 <b>TrackFlow Pro Admin Dashboard</b>\n\nLogin URL: <code>${DOMAIN}/admin</code>\n\n🔐 Use your admin credentials to log in.`);
         }
       }
       return NextResponse.json({ ok: true });
@@ -641,7 +655,7 @@ export async function POST(req: Request) {
           await sendTelegramReply(adminChatId, adminAlertText, adminKeyboard);
         }
       }
-    } else if (text.startsWith('/approve')) {
+    } else if (text === '/approve' || text.startsWith('/approve ')) {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
@@ -657,7 +671,7 @@ export async function POST(req: Request) {
       const targetChatId = parts[1].trim();
       const { data, error } = await supabaseAdmin
         .from('affiliate_links')
-        .update({ is_active: true })
+        .update({ is_active: true, is_banned: false, ban_reason: null })
         .eq('chat_id', targetChatId)
         .select()
         .single();
@@ -668,7 +682,7 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, `✅ Successfully approved Chat ID ${targetChatId}!`);
         await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
       }
-    } else if (text.startsWith('/reject')) {
+    } else if (text === '/reject' || text.startsWith('/reject ')) {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
@@ -684,16 +698,16 @@ export async function POST(req: Request) {
       const targetChatId = parts[1].trim();
       const { data, error } = await supabaseAdmin
         .from('affiliate_links')
-        .delete()
+        .update({ is_active: false })
         .eq('chat_id', targetChatId)
         .select()
         .single();
 
       if (error || !data) {
-        await sendTelegramReply(chatId, `❌ Failed to reject. Chat ID ${targetChatId} not found or already deleted.`);
+        await sendTelegramReply(chatId, `❌ Failed to reject. Chat ID ${targetChatId} not found.`);
       } else {
-        await sendTelegramReply(chatId, `🗑️ Successfully rejected and deleted Chat ID ${targetChatId}!`);
-        await sendTelegramReply(targetChatId, `❌ <b>Request Rejected</b>\n\nYour subscription request was rejected. If you think this is a mistake, please contact @cozy_look.`);
+        await sendTelegramReply(chatId, `⏸️ Successfully rejected/suspended Chat ID ${targetChatId}! Their link is now INACTIVE.`);
+        await sendTelegramReply(targetChatId, `⏸️ <b>Request Rejected</b>\n\nYour subscription request was rejected. If you think this is a mistake, please contact @cozy_look.`);
       }
     } else if (text.startsWith('/pending') || text === '📋 Pending Approvals') {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
@@ -726,7 +740,7 @@ export async function POST(req: Request) {
           await sendTelegramReply(chatId, cardText, keyboard);
         }
       }
-    } else if (text.startsWith('/ban')) {
+    } else if (text === '/ban' || text.startsWith('/ban ')) {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
@@ -756,7 +770,7 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, `🚫 Successfully **BANNED** affiliate <code>${data.chat_id}</code> (@${data.telegram_username || 'user'})!\nReason: ${reason}`);
         await sendTelegramReply(data.chat_id, `🚫 <b>Account Banned</b>\n\nYour promotional link has been suspended and banned due to: <i>${reason}</i>\nYou will no longer receive tracking leads or be able to generate links.`);
       }
-    } else if (text.startsWith('/unban')) {
+    } else if (text === '/unban' || text.startsWith('/unban ')) {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;
       if (chatId !== adminChatId || senderUsername.toLowerCase() !== 'cozy_look') {
         await sendTelegramReply(chatId, "❌ You do not have permission to use this command.");
@@ -824,7 +838,7 @@ export async function POST(req: Request) {
           await sendTelegramReply(chatId, cardText, { inline_keyboard: buttons });
         }
       }
-    } else if (text.startsWith('/refresh') || text.startsWith('/track')) {
+    } else if (text === '/refresh' || text.startsWith('/refresh ') || text === '/track' || text.startsWith('/track ')) {
       const parts = text.trim().split(/\s+/);
       if (parts.length < 2) {
         await sendTelegramReply(chatId, "ℹ️ Please provide a tracking number.\nExample: <code>/refresh 62515161616</code>", replyKeyboard);
