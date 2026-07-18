@@ -47,7 +47,9 @@ interface Lead {
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [passphrase, setPassphrase] = useState("");
+  const [chatId, setChatId] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [step, setStep] = useState<"chat_id" | "otp">("chat_id");
   const [authError, setAuthError] = useState("");
   const [activeTab, setActiveTab] = useState<"overview" | "affiliates" | "leads">("overview");
 
@@ -81,7 +83,7 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
     setLoading(true);
@@ -89,18 +91,46 @@ export default function AdminDashboard() {
       const res = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passphrase })
+        body: JSON.stringify({ action: "request_otp", chatId })
       });
       const data = await res.json();
       if (data.ok) {
+        setStep("otp");
+        toast.success("Security code sent to your Telegram!");
+      } else {
+        setAuthError(data.error || "Failed to request OTP");
+      }
+    } catch (err) {
+      setAuthError("Failed to communicate with server");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify_otp", chatId, code: otpCode })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (!data.isAdmin) {
+          window.location.href = data.redirectUrl || "/affiliate";
+          return;
+        }
         sessionStorage.setItem("admin_auth_ok", "true");
         setIsAuthenticated(true);
         fetchData();
       } else {
-        setAuthError(data.error || "Access Denied");
+        setAuthError(data.error || "Invalid Security Code");
       }
     } catch (err) {
-      setAuthError("Failed to authenticate with server");
+      setAuthError("Failed to communicate with server");
     } finally {
       setLoading(false);
     }
@@ -261,23 +291,47 @@ export default function AdminDashboard() {
           </div>
           <h1 className="text-3xl font-extrabold text-center tracking-tight mb-2">TrackFlow Admin</h1>
           <p className="text-gray-400 text-center text-sm mb-8">
-            Restricted Access. Enter your Admin Passphrase or Telegram Chat ID (@cozy_look).
+            Restricted Access. Enter your Admin Credentials to continue.
           </p>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2">
-                Admin Passphrase / Chat ID
-              </label>
-              <input
-                type="password"
-                required
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                placeholder="Enter passphrase..."
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
-              />
-            </div>
+          <form onSubmit={step === "chat_id" ? handleRequestOtp : handleVerifyOtp} className="space-y-4">
+            {step === "chat_id" ? (
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2">
+                  Telegram Chat ID
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={chatId}
+                  onChange={(e) => setChatId(e.target.value)}
+                  placeholder="Enter your Chat ID..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all mb-4"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-2">
+                  6-Digit Security Code
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  placeholder="Enter code from Telegram..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-center tracking-widest text-xl font-mono"
+                  maxLength={6}
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setStep("chat_id")} 
+                  className="mt-3 text-xs text-purple-400 hover:text-purple-300 w-full text-center"
+                >
+                  &larr; Back to Chat ID
+                </button>
+              </div>
+            )}
 
             {authError && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-400 text-sm">
@@ -291,7 +345,7 @@ export default function AdminDashboard() {
               disabled={loading}
               className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple-600/30 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <span>Unlock Admin Portal</span>}
+              {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <span>{step === "chat_id" ? "Send Security Code" : "Verify & Unlock"}</span>}
             </button>
           </form>
         </div>

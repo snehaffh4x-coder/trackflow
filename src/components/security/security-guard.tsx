@@ -58,6 +58,43 @@ export function SecurityGuard() {
       }
     };
 
+    // 4. Advanced DevTools Blocking (Debugger trap + Console overwrite)
+    const blockDevTools = () => {
+      // Clear console continuously
+      const clearConsole = () => {
+        if (typeof console !== "undefined" && console.clear) {
+          console.clear();
+        }
+      };
+      
+      // Override console methods to prevent script output
+      if (typeof window !== "undefined") {
+        Object.keys(console).forEach(method => {
+          if (typeof (console as any)[method] === 'function') {
+            (console as any)[method] = function() {};
+          }
+        });
+      }
+
+      // Start the infinite debugger trap
+      setInterval(() => {
+        const before = new Date().getTime();
+        // eslint-disable-next-line no-debugger
+        debugger;
+        const after = new Date().getTime();
+        if (after - before > 100) {
+          // DevTools might be open, clear everything
+          clearConsole();
+          document.body.innerHTML = "";
+          window.location.replace("about:blank");
+        }
+      }, 1000);
+    };
+
+    if (process.env.NODE_ENV === "production") {
+       blockDevTools();
+    }
+
     window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("dragstart", handleDragStart);

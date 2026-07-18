@@ -13,8 +13,8 @@ const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 export async function middleware(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for') || 'unknown';
   
-  // 1. Rate Limiting for all Admin APIs (DDoS Protection)
-  if (request.nextUrl.pathname.startsWith('/api/admin')) {
+  // 1. Rate Limiting for all Admin & Affiliate APIs (DDoS Protection)
+  if (request.nextUrl.pathname.startsWith('/api/admin') || request.nextUrl.pathname.startsWith('/api/affiliate')) {
     const now = Date.now();
     const rateLimitInfo = rateLimitMap.get(ip);
     
@@ -56,5 +56,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/admin/:path*'],
+  matcher: ['/api/admin/:path*', '/api/affiliate/:path*'],
 };

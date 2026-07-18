@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendTelegramReply } from '@/lib/telegram';
 import { nanoid } from 'nanoid';
+import bcrypt from 'bcryptjs';
 
 // Required for Telegram Webhook
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -582,6 +583,9 @@ export async function POST(req: Request) {
           await sendTelegramReply(chatId, `🛡️ <b>Duplicate Audit Completed!</b>\nDatabase is 100% clean. Zero duplicates found.`, replyKeyboard);
         }
       }
+      return NextResponse.json({ ok: true });
+    } else if (text === '/setpassword' || text.startsWith('/setpassword ')) {
+      await sendTelegramReply(chatId, "❌ Static passwords have been disabled for military-grade security. Please use the new OTP-based login on the web panel.", replyKeyboard);
       return NextResponse.json({ ok: true });
     } else if (text.startsWith('/start') || text.startsWith('/link') || text === '🔗 My Link & Status') {
       // Check if user already has an affiliate link
