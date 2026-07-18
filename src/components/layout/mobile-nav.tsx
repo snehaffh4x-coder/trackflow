@@ -24,7 +24,7 @@ export function MobileNav({ items }: { items: NavItem[] }) {
         <Menu className="h-5 w-5" />
         <span className="sr-only">Toggle menu</span>
       </SheetTrigger>
-      <SheetContent side="right" className="w-[300px] sm:w-[400px] border-white/10 bg-background/95 backdrop-blur-xl">
+      <SheetContent side="right" className="w-[300px] sm:w-[400px] border-l border-gray-200 bg-white">
         <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
         <nav className="flex flex-col gap-6 mt-12">
           {items.map((item, index) => {
@@ -37,15 +37,15 @@ export function MobileNav({ items }: { items: NavItem[] }) {
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "flex items-center gap-4 text-lg font-medium transition-all p-3 rounded-xl hover:bg-white/5",
-                  isActive ? "text-primary bg-primary/10" : "text-muted-foreground"
+                  "flex items-center gap-4 text-lg font-medium transition-all p-3 rounded-md hover:bg-gray-50",
+                  isActive ? "text-blue-600 bg-blue-50" : "text-gray-600"
                 )}
                 style={{
                   animation: `slide-up 0.3s ease-out ${index * 0.1}s forwards`,
                   opacity: 0,
                 }}
               >
-                {Icon && <Icon className={cn("w-5 h-5", isActive ? "text-primary" : "")} />}
+                {Icon && <Icon className={cn("w-5 h-5", isActive ? "text-blue-600" : "")} />}
                 {item.label}
               </Link>
             );
@@ -53,7 +53,7 @@ export function MobileNav({ items }: { items: NavItem[] }) {
           
           <div className="mt-8 px-3">
             <Link href="/admin" onClick={() => setOpen(false)}>
-              <Button variant="outline" className="w-full justify-start gap-2 border-white/10">
+              <Button variant="outline" className="w-full justify-start gap-2 border-gray-200 bg-white hover:bg-gray-50 text-gray-900 rounded-md">
                 Admin Dashboard
               </Button>
             </Link>

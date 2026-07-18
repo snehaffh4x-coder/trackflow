@@ -3,9 +3,9 @@ import { COURIERS } from "@/lib/utils";
 
 export function CouriersSection() {
   return (
-    <section className="py-16 border-t border-white/5">
+    <section className="py-16 border-t border-gray-200 bg-white">
       <div className="container mx-auto px-4">
-        <p className="text-center text-xs font-medium text-neutral-500 uppercase tracking-[0.25em] mb-10">
+        <p className="text-center text-xs font-medium text-gray-500 uppercase tracking-[0.25em] mb-10">
           Supported Couriers
         </p>
 
@@ -16,7 +16,7 @@ export function CouriersSection() {
             {COURIERS.map((courier) => (
               <div 
                 key={courier.code}
-                className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <div 
                   className="w-2 h-2 rounded-full" 
@@ -28,15 +28,14 @@ export function CouriersSection() {
           </div>
 
           {/* Right: Professional courier image */}
-          <div className="relative h-64 lg:h-80 rounded-xl overflow-hidden">
+          <div className="relative h-64 lg:h-80 rounded-md overflow-hidden border border-gray-200 shadow-sm">
             <Image
               src="/courier-trust.png"
               alt="Courier delivery"
               fill
-              className="object-cover rounded-xl"
+              className="object-cover"
               quality={85}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
           </div>
         </div>
       </div>

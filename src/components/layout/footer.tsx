@@ -5,21 +5,16 @@ import { Package, Globe, MessageCircle, Mail } from "lucide-react";
 
 export function Footer() {
   return (
-    <footer className="bg-card/30 backdrop-blur-md border-t border-white/5 pt-16 pb-8 mt-auto relative overflow-hidden">
-      {/* Background glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl h-1/2 bg-primary/5 blur-[120px] rounded-full pointer-events-none" />
-      
-      <div className="container mx-auto px-4 md:px-8 relative z-10">
+    <footer className="bg-gray-100 border-t border-gray-200 pt-16 pb-8 mt-auto">
+      <div className="container mx-auto px-4 md:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 mb-12">
           {/* Brand */}
           <div className="space-y-4 lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2">
-              <Package className="w-6 h-6 text-primary" />
-              <span className="font-heading font-bold text-xl tracking-tight">
-                Track<span className="text-primary">Flow</span>
-              </span>
+            <Link href="/" className="flex items-center gap-2 text-gray-900 hover:text-blue-600 transition-colors">
+              <Package className="w-6 h-6" />
+              <span className="font-bold text-xl tracking-tight">TrackFlow</span>
             </Link>
-            <p className="text-muted-foreground text-sm leading-relaxed max-w-xs">
+            <p className="text-gray-600 text-sm leading-relaxed max-w-xs">
               Track your packages across all major Indian couriers in one place.
             </p>
             <div className="flex items-center gap-4 pt-2">
@@ -55,7 +50,7 @@ export function Footer() {
 
 
 
-        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="pt-8 border-t border-gray-300 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             &copy; {new Date().getFullYear()} TrackFlow. All rights reserved.
           </p>

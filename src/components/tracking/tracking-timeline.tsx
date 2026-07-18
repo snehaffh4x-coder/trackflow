@@ -9,7 +9,7 @@ export function TrackingTimeline({ events }: { events: TrackingEvent[] }) {
   return (
     <div className="relative">
       {/* Vertical line connecting steps */}
-      <div className="absolute left-[15px] md:left-[147px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-white/10" />
+      <div className="absolute left-[15px] md:left-[147px] top-2 bottom-2 w-0.5 bg-gray-200" />
 
       <div className="space-y-8">
         {events.map((event, index) => {
@@ -27,7 +27,7 @@ export function TrackingTimeline({ events }: { events: TrackingEvent[] }) {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: index * 0.1 }}
               className={`relative flex flex-col md:flex-row md:items-start gap-4 md:gap-8 group ${
-                isLatest ? "text-foreground" : "text-muted-foreground"
+                isLatest ? "text-gray-900" : "text-gray-500"
               }`}
             >
               {/* Date/Time (Desktop) */}
@@ -39,16 +39,13 @@ export function TrackingTimeline({ events }: { events: TrackingEvent[] }) {
               {/* Icon & Content */}
               <div className="flex gap-4 md:gap-0 flex-1">
                 {/* Status Icon */}
-                <div className="relative z-10 flex items-center justify-center w-8 h-8 rounded-full bg-background border-2 border-primary group-hover:scale-110 transition-transform shrink-0 md:mr-8">
-                  {isLatest ? (
-                    <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                  ) : null}
-                  <Icon className={`w-4 h-4 ${isLatest ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="relative z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white border-2 border-blue-600 transition-transform shrink-0 md:mr-8">
+                  <Icon className={`w-4 h-4 ${isLatest ? "text-blue-600" : "text-gray-400"}`} />
                 </div>
 
                 {/* Event Content */}
                 <div className="flex-1 pb-2">
-                  <h4 className={`text-lg font-semibold mb-1 ${isLatest ? "text-primary" : ""}`}>
+                  <h4 className={`text-lg font-semibold mb-1 ${isLatest ? "text-blue-600" : ""}`}>
                     {event.status}
                   </h4>
                   <p className="text-sm leading-relaxed mb-2 opacity-90">
@@ -65,7 +62,7 @@ export function TrackingTimeline({ events }: { events: TrackingEvent[] }) {
                       {formatDateTime(event.date).split(",")[0]} • {event.time}
                     </span>
                     
-                    <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 opacity-70">
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 border border-gray-200 opacity-70 text-gray-700">
                       {timeAgo(event.date)}
                     </span>
                   </div>

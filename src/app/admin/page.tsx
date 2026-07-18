@@ -63,11 +63,21 @@ export default function AdminDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
+    let interval: NodeJS.Timeout;
     const saved = sessionStorage.getItem("admin_auth_ok");
     if (saved === "true") {
       setIsAuthenticated(true);
       fetchData();
+      
+      // Real-time updates every 10 seconds without showing loading spinner
+      interval = setInterval(() => {
+        fetchData(false);
+      }, 10000);
     }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -95,8 +105,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [affRes, leadsRes] = await Promise.all([
         fetch("/api/admin/affiliates"),
@@ -104,6 +114,13 @@ export default function AdminDashboard() {
       ]);
       const affData = await affRes.json();
       const leadsData = await leadsRes.json();
+
+      if (affRes.status === 401 || leadsRes.status === 401) {
+        sessionStorage.removeItem("admin_auth_ok");
+        setIsAuthenticated(false);
+        setAuthError("Session expired. Please login again.");
+        return;
+      }
 
       if (affData.ok) setAffiliates(affData.affiliates);
       if (leadsData.ok) {
@@ -113,7 +130,7 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error("Error loading admin data:", error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -302,7 +319,7 @@ export default function AdminDashboard() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             disabled={loading}
             className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium flex items-center gap-2 transition-all"
           >
@@ -319,7 +336,14 @@ export default function AdminDashboard() {
             <span>Audit Duplicates</span>
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
+              try {
+                await fetch("/api/admin/auth", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "logout" })
+                });
+              } catch (e) {}
               sessionStorage.removeItem("admin_auth_ok");
               setIsAuthenticated(false);
             }}

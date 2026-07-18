@@ -27,25 +27,11 @@ export function Navbar() {
   }, []);
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-50 w-full transition-all duration-300",
-        isScrolled
-          ? "bg-background/40 backdrop-blur-xl border-b border-white/5 py-2 md:py-3 shadow-[0_4px_30px_rgba(0,0,0,0.1)]"
-          : "bg-transparent py-3 md:py-5"
-      )}
-    >
+    <header className="w-full bg-white border-b border-gray-200 py-4">
       <div className="container mx-auto px-4 md:px-8 flex items-center justify-between">
-        <Link 
-          href="/" 
-          className="flex items-center gap-2 group transition-transform hover:scale-105"
-        >
-          <div className="bg-primary/10 p-2 rounded-xl border border-primary/20 group-hover:border-primary/50 transition-colors">
-            <Package className="w-6 h-6 text-primary" />
-          </div>
-          <span className="font-heading font-bold text-xl tracking-tight">
-            Track<span className="text-primary">Flow</span>
-          </span>
+        <Link href="/" className="flex items-center gap-2 text-gray-900 hover:text-blue-600 transition-colors">
+          <Package className="w-6 h-6" />
+          <span className="font-bold text-xl tracking-tight">TrackFlow</span>
         </Link>
 
         {!isMobile && (
@@ -73,7 +59,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-4">
           <Link href="/track">
-            <Button className="rounded-full px-6 shadow-[0_0_15px_rgba(59,130,246,0.5)] hover:shadow-[0_0_25px_rgba(59,130,246,0.7)] transition-all">
+            <Button className="rounded-md px-6 bg-blue-600 hover:bg-blue-700 text-white font-medium">
               Track Package
             </Button>
           </Link>

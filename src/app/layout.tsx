@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { AuroraBackground } from "@/components/ui/aurora-background";
 import { SecurityGuard } from "@/components/security/security-guard";
 
 const geistSans = Geist({
@@ -66,19 +65,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased min-h-screen flex flex-col font-sans`}
+        className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased min-h-screen flex flex-col font-sans bg-background text-foreground`}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <SecurityGuard />
-          <AuroraBackground />
           <div className="relative z-10 flex flex-col min-h-screen">
             <Navbar />
             <main className="flex-1 flex flex-col">{children}</main>
             <Footer />
           </div>
-          <Toaster theme="dark" position="top-right" />
+          <Toaster position="top-right" />
         </ThemeProvider>
       </body>
     </html>

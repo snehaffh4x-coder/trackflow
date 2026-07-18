@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Search, Package } from "lucide-react";
 import { useTracking } from "@/hooks/use-tracking";
 
@@ -17,6 +18,7 @@ export function TrackingSearch() {
     isLoading, 
     handleTrack 
   } = useTracking();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -38,18 +40,18 @@ export function TrackingSearch() {
   }, [setTrackingNumber, setCourier, setFullName, setMobileNumber]);
 
   return (
-    <div className="max-w-2xl mx-auto w-full bg-neutral-900/80 border border-white/10 rounded-2xl p-5">
+    <div className="max-w-2xl mx-auto w-full bg-gray-50 border border-gray-300 rounded-lg p-6 shadow-sm">
       <form 
-        onSubmit={(e) => handleTrack(e, true)} 
+        onSubmit={(e) => handleTrack(e, pathname !== "/track")} 
         className="flex flex-col gap-3"
       >
         {/* Name + Phone row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <input
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Full Name"
-            className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full px-4 py-3 bg-white border border-gray-300 rounded text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
             required
           />
           <input
@@ -57,38 +59,38 @@ export function TrackingSearch() {
             onChange={(e) => setMobileNumber(e.target.value)}
             placeholder="Mobile Number"
             type="tel"
-            className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full px-4 py-3 bg-white border border-gray-300 rounded text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
             required
           />
         </div>
 
         {/* Tracking + Courier + Button row */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               value={trackingNumber}
               onChange={(e) => setTrackingNumber(e.target.value)}
               placeholder="Tracking number"
-              className="w-full pl-10 pr-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full pl-11 pr-4 py-3 bg-white border border-gray-300 rounded text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
               required
             />
           </div>
           
           <div className="relative">
-            <Package className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <Package className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               value={courier}
               onChange={(e) => setCourier(e.target.value)}
               placeholder="Courier (optional)"
-              className="w-full sm:w-44 pl-10 pr-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500 transition-colors"
+              className="w-full sm:w-48 pl-11 pr-4 py-3 bg-white border border-gray-300 rounded text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
             />
           </div>
 
           <button 
             type="submit" 
             disabled={isLoading}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-sm"
           >
             {isLoading ? "Searching..." : "Track"}
           </button>

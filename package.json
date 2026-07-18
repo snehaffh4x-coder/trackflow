@@ -22,6 +22,7 @@
     "framer-motion": "^12.42.2",
     "google-libphonenumber": "^3.2.44",
     "google-translate-api-x": "^10.7.3",
+    "jose": "^6.2.3",
     "lucide-react": "^1.24.0",
     "nanoid": "^6.0.0",
     "next": "16.2.10",

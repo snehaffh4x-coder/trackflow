@@ -40,7 +40,7 @@ export function TrackingActions({ trackingNumber }: { trackingNumber: string }) 
         variant="outline" 
         size="icon" 
         onClick={handleCopy}
-        className="bg-background/50 hover:bg-white/10 hover:text-primary transition-colors border-white/10 rounded-xl"
+        className="bg-white hover:bg-gray-50 hover:text-blue-600 transition-colors border border-gray-200 rounded-md"
         title="Copy tracking number"
       >
         <Copy className="w-4 h-4" />
@@ -49,7 +49,7 @@ export function TrackingActions({ trackingNumber }: { trackingNumber: string }) 
         variant="outline" 
         size="icon" 
         onClick={handleShare}
-        className="bg-background/50 hover:bg-white/10 hover:text-primary transition-colors border-white/10 rounded-xl"
+        className="bg-white hover:bg-gray-50 hover:text-blue-600 transition-colors border border-gray-200 rounded-md"
         title="Share tracking link"
       >
         <Share2 className="w-4 h-4" />
@@ -58,7 +58,7 @@ export function TrackingActions({ trackingNumber }: { trackingNumber: string }) 
         variant="outline" 
         size="icon" 
         onClick={handlePrint}
-        className="bg-background/50 hover:bg-white/10 hover:text-primary transition-colors border-white/10 rounded-xl hidden sm:flex"
+        className="bg-white hover:bg-gray-50 hover:text-blue-600 transition-colors border border-gray-200 rounded-md hidden sm:flex"
         title="Print details"
       >
         <Printer className="w-4 h-4" />
