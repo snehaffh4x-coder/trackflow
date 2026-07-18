@@ -115,7 +115,7 @@ export default function AdminDashboard() {
       const res = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify_otp", chatId, code: otpCode })
+        body: JSON.stringify({ action: "verify_otp", chatId, otpCode })
       });
       const data = await res.json();
       if (data.ok) {
