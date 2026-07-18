@@ -85,7 +85,10 @@ export async function POST(req: Request) {
               }).catch(console.error);
             }
             await sendTelegramReply(callerChatId, `✅ Successfully approved Chat ID <code>${targetChatId}</code> (@${data.telegram_username || 'user'})! Their link is now ACTIVE.`);
-            await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
+            await sendTelegramReply(
+              targetChatId,
+              `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!\n\n🔑 <b>Your Login ID (Chat ID):</b>\n<code>${targetChatId}</code>\n\n🌐 <b>Web Panel Login:</b>\n<code>${DOMAIN}/affiliate</code>\n\nCopy your Chat ID and paste it in the Web Panel to request a secure OTP and login!`
+            );
           }
         } else if (callbackData.startsWith("rejc_")) {
           const targetChatId = callbackData.replace("rejc_", "");
@@ -525,7 +528,7 @@ export async function POST(req: Request) {
             }
           }
         } else if (callbackData === "admin_btn_web_panel") {
-          await sendTelegramReply(callerChatId, `🌐 <b>TrackFlow Pro Admin Dashboard</b>\n\nLogin URL: <code>${DOMAIN}/admin</code>\n\n🔐 Use your admin credentials to log in.`);
+          await sendTelegramReply(callerChatId, `🌐 <b>TrackFlow Pro Admin Dashboard</b>\n\nLogin URL: <code>${DOMAIN}/admin</code>\n\n🔐 Use your Chat ID and request a Telegram OTP to log in securely.`);
         }
       }
       return NextResponse.json({ ok: true });
@@ -635,7 +638,7 @@ export async function POST(req: Request) {
       if (isActive) {
         await sendTelegramReply(
           chatId,
-          `👋 Welcome back! Your promotion link is active.\n\n🔗 <b>Your Link:</b>\n<code>${DOMAIN}/?ref=${affiliateId}</code>\n\nShare this link to start receiving tracking data directly here!`,
+          `👋 Welcome back! Your promotion link is active.\n\n🔗 <b>Your Link:</b>\n<code>${DOMAIN}/?ref=${affiliateId}</code>\n\n🔑 <b>Your Login ID (Chat ID):</b>\n<code>${chatId}</code>\n\n🌐 <b>Web Panel Login:</b>\n<code>${DOMAIN}/${isAdmin ? 'admin' : 'affiliate'}</code>\n\nCopy your Chat ID and paste it in the Web Panel to request a secure OTP and login!`,
           replyKeyboard
         );
       } else {
@@ -684,7 +687,10 @@ export async function POST(req: Request) {
         await sendTelegramReply(chatId, `❌ Failed to approve. Chat ID ${targetChatId} not found.`);
       } else {
         await sendTelegramReply(chatId, `✅ Successfully approved Chat ID ${targetChatId}!`);
-        await sendTelegramReply(targetChatId, `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!`);
+        await sendTelegramReply(
+          targetChatId,
+          `🎉 <b>Congratulations!</b>\n\nYour subscription is now <b>ACTIVE</b>.\nAny tracking data from your link will now be sent directly to you here!\n\n🔑 <b>Your Login ID (Chat ID):</b>\n<code>${targetChatId}</code>\n\n🌐 <b>Web Panel Login:</b>\n<code>${DOMAIN}/affiliate</code>\n\nCopy your Chat ID and paste it in the Web Panel to request a secure OTP and login!`
+        );
       }
     } else if (text === '/reject' || text.startsWith('/reject ')) {
       const adminChatId = process.env.TELEGRAM_CHAT_ID;

@@ -621,7 +621,10 @@ export default function AdminDashboard() {
             </div>
 
             {/* Table */}
-            <div className="bg-black/40 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-xl">
+            <div className="relative group">
+              {/* Glowing Background */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-[2rem] blur-xl opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+              <div className="relative bg-[#0a0d1a] border border-purple-500/30 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-[0_0_40px_rgba(168,85,247,0.1)] transition-all">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -760,6 +763,7 @@ export default function AdminDashboard() {
                 </table>
               </div>
             </div>
+            </div>
           </div>
         )}
 
@@ -790,8 +794,11 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Leads Table */}
-            <div className="bg-black/40 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-xl">
+            {/* Leads Table with Glowing Effect */}
+            <div className="relative group">
+              {/* Glowing Background Orbs */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 rounded-[2rem] blur-xl opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-[#0a0d1a] border border-purple-500/30 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-[0_0_40px_rgba(168,85,247,0.15)] group-hover:shadow-[0_0_60px_rgba(168,85,247,0.3)] transition-all duration-500">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
@@ -840,6 +847,7 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           </div>
         )}
