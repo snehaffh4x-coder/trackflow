@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Users,
   ShieldAlert,
@@ -147,10 +148,10 @@ export default function AdminDashboard() {
         fetchData();
         if (banModalAffiliate) setBanModalAffiliate(null);
       } else {
-        alert(`Action failed: ${data.error}`);
+        toast.error(`Action failed: ${data.error}`);
       }
     } catch (err) {
-      alert("Error performing action");
+      toast.error("Error performing action");
     } finally {
       setActionLoading(null);
     }
@@ -167,18 +168,18 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       if (data.ok) {
-        alert(data.message);
+        toast.success(data.message || "Duplicate cleanup successful");
         fetchData();
       }
     } catch (err) {
-      alert("Duplicate cleanup failed");
+      toast.error("Duplicate cleanup failed");
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleExportLeadsCSV = () => {
-    if (leads.length === 0) return alert("No leads to export");
+    if (leads.length === 0) return toast.error("No leads to export");
     const headers = ["Tracking Number", "Courier", "Full Name", "Mobile Number", "Status", "Affiliate ID", "Created At"];
     const rows = leads.map(l => [
       l.tracking_number,
@@ -200,7 +201,7 @@ export default function AdminDashboard() {
   };
 
   const handleExportLeadsTXT = () => {
-    if (leads.length === 0) return alert("No leads to export");
+    if (leads.length === 0) return toast.error("No leads to export");
     let content = `====================================================\n`;
     content += `        TRACKFLOW - ALL LEADS REPORT (TXT)\n`;
     content += `        Generated on: ${new Date().toLocaleString()}\n`;

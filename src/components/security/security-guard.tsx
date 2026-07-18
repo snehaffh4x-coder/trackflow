@@ -8,9 +8,6 @@ export function SecurityGuard() {
     // 1. Disable Right Click (Context Menu)
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
-      toast.error("Protected: Right-click is disabled for security reasons.", {
-        id: "sec-right-click",
-      });
       return false;
     };
 
@@ -43,9 +40,6 @@ export function SecurityGuard() {
       // Ctrl+U / Cmd+U (View Source)
       if ((e.ctrlKey || e.metaKey) && (e.key === "U" || e.key === "u")) {
         e.preventDefault();
-        toast.error("Protected: Viewing source code is disabled.", {
-          id: "sec-view-source",
-        });
         return false;
       }
 
